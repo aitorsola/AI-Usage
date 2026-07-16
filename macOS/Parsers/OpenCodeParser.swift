@@ -10,7 +10,10 @@ import AIUsageCore
 import SQLite3
 
 struct OpenCodeParser {
-    static let dbPath = NSHomeDirectory() + "/.local/share/opencode/opencode.db"
+    static let defaultDBPath = NSHomeDirectory() + "/.local/share/opencode/opencode.db"
+
+    // Injectable for tests; the app always uses the default location.
+    var dbPath = OpenCodeParser.defaultDBPath
 
     struct Result {
         var events: [UsageEvent]
@@ -18,7 +21,7 @@ struct OpenCodeParser {
     }
 
     func collect(since cutoff: Date) -> Result {
-        guard FileManager.default.fileExists(atPath: Self.dbPath) else {
+        guard FileManager.default.fileExists(atPath: dbPath) else {
             return Result(events: [], installed: false)
         }
         guard let db = open() else { return Result(events: [], installed: true) }
@@ -65,7 +68,7 @@ struct OpenCodeParser {
     private func open() -> OpaquePointer? {
         var db: OpaquePointer?
         let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_URI
-        for uri in ["file:\(Self.dbPath)?mode=ro", "file:\(Self.dbPath)?mode=ro&immutable=1"] {
+        for uri in ["file:\(dbPath)?mode=ro", "file:\(dbPath)?mode=ro&immutable=1"] {
             if sqlite3_open_v2(uri, &db, flags, nil) == SQLITE_OK { return db }
             if let db { sqlite3_close(db) }
             db = nil

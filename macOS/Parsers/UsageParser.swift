@@ -70,7 +70,7 @@ final class UsageParser {
         return out
     }
 
-    private static func parseLine(_ line: String, cutoff: Date) -> UsageEvent? {
+    static func parseLine(_ line: String, cutoff: Date) -> UsageEvent? {
         guard line.contains("\"assistant\""), line.contains("\"usage\"") else { return nil }
         guard let obj = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any],
               (obj["type"] as? String) == "assistant",
@@ -99,7 +99,7 @@ final class UsageParser {
         (v as? NSNumber)?.intValue ?? 0
     }
 
-    private static func tokens(from usage: [String: Any]) -> (input: Int, output: Int, read: Int, w5m: Int, w1h: Int) {
+    static func tokens(from usage: [String: Any]) -> (input: Int, output: Int, read: Int, w5m: Int, w1h: Int) {
         if let iterations = usage["iterations"] as? [[String: Any]], !iterations.isEmpty {
             var i = 0, o = 0, r = 0, w5 = 0, w1 = 0
             for it in iterations {

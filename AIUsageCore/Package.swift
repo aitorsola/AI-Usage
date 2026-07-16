@@ -19,5 +19,6 @@ let package = Package(
     ],
     targets: [
         .target(name: "AIUsageCore"),
+        .testTarget(name: "AIUsageCoreTests", dependencies: ["AIUsageCore"]),
     ]
 )

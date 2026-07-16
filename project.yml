@@ -5,6 +5,7 @@ options:
     macOS: "14.0"
     iOS: "17.0"
   createIntermediateGroups: true
+  localPackagesGroup: ""
 
 settings:
   base:
@@ -116,6 +117,37 @@ targets:
         embed: true
       - package: AIUsageCore
 
+  AIUsageMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: macOSTests
+        type: syncedFolder
+    dependencies:
+      - target: AIUsage
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/AI Usage.app/Contents/MacOS/AI Usage"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+  AIUsageiOSTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: iOSTests
+        type: syncedFolder
+    dependencies:
+      - target: AIUsageiOS
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/AI Usage.app/AI Usage"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: SK4CMEFH7T
+        CODE_SIGNING_ALLOWED: "YES"
+
   AIUsageWidgetiOS:
     type: app-extension
     platform: iOS
@@ -150,9 +182,17 @@ schemes:
         AIUsage: all
     run:
       config: Release
+    test:
+      config: Debug
+      targets:
+        - AIUsageMacTests
   AIUsageiOS:
     build:
       targets:
         AIUsageiOS: all
     run:
       config: Release
+    test:
+      config: Debug
+      targets:
+        - AIUsageiOSTests

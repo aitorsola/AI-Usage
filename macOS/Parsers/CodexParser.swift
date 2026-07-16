@@ -22,7 +22,7 @@ final class CodexParser {
         var installed = false
     }
 
-    private struct FileCacheEntry {
+    struct FileCacheEntry {
         let mtime: Date
         let size: Int
         let events: [UsageEvent]
@@ -84,7 +84,7 @@ final class CodexParser {
         return result
     }
 
-    private static func parseFile(url: URL, cutoff: Date) -> FileCacheEntry {
+    static func parseFile(url: URL, cutoff: Date) -> FileCacheEntry {
         let vals = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
         let mtime = vals?.contentModificationDate ?? .distantPast
         let size = vals?.fileSize ?? 0

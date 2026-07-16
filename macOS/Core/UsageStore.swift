@@ -107,8 +107,10 @@ final class UsageStore: ObservableObject {
     }
 
     var combinedDays: [DayUsage] {
-        let a = anthropic.snapshot.days
-        let b = openAI.snapshot.days
+        Self.combineDays(anthropic.snapshot.days, openAI.snapshot.days)
+    }
+
+    static func combineDays(_ a: [DayUsage], _ b: [DayUsage]) -> [DayUsage] {
         guard !b.isEmpty, b.contains(where: { $0.totals.cost > 0 }), a.count == b.count else {
             return a
         }
