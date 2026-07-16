@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import WidgetKit
 
 final class UsageStore: ObservableObject {
     @Published var anthropic = ProviderData(kind: .anthropic)
@@ -75,6 +76,7 @@ final class UsageStore: ObservableObject {
                     self.hasLoaded = true
                     self.isRefreshing = false
                     self.refreshing = false
+                    self.updateWidgetSnapshot()
                 }
             }
         }
@@ -96,6 +98,68 @@ final class UsageStore: ObservableObject {
 
     var combinedTodayCost: Double {
         anthropic.snapshot.today.cost + openAI.snapshot.today.cost
+    }
+
+    // MARK: - Widget snapshot
+
+    private func updateWidgetSnapshot() {
+        let defaults = UserDefaults.standard
+        let raw = defaults.string(forKey: SettingsKeys.menuSections) ?? MenuSectionsConfig.storageDefault
+        let showRemaining = (defaults.string(forKey: SettingsKeys.limitDisplay)
+            ?? LimitDisplay.remaining.rawValue) != LimitDisplay.used.rawValue
+
+        let sections = MenuSectionsConfig.parse(raw)
+        var providers: [WSProvider] = []
+        for section in sections where section.visible {
+            switch section.id {
+            case .claude: providers.append(wsProvider(anthropic))
+            case .openai: if openAI.available { providers.append(wsProvider(openAI)) }
+            case .openCode: if openCode.available { providers.append(wsProvider(openCode)) }
+            case .deepSeek: if deepSeek.available { providers.append(wsProvider(deepSeek)) }
+            case .week: break
+            }
+        }
+        // Mirror the panel: only build the weekly bars if that section is on.
+        let weekVisible = sections.contains { $0.id == .week && $0.visible }
+
+        let days = Array(combinedDays.suffix(7))
+        let maxCost = days.map(\.totals.cost).max() ?? 0
+        let bars = weekVisible ? days.map { maxCost > 0 ? $0.totals.cost / maxCost : 0 } : []
+        let weekCost = days.reduce(0) { $0 + $1.totals.cost }
+        let weekTitle = "\(openAI.available ? L.t("last_7_days_total") : L.t("last_7_days")) — \(Formatters.cost(weekCost))"
+
+        let snapshot = WidgetSnapshot(
+            providers: providers,
+            showRemaining: showRemaining,
+            weekTitle: weekTitle,
+            weekBars: bars,
+            updatedText: Formatters.time(lastUpdated),
+            date: lastUpdated
+        )
+        WidgetShared.save(snapshot)
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    private func wsProvider(_ data: ProviderData) -> WSProvider {
+        let gauges = data.menuGauges.map {
+            WSGauge(label: $0.label,
+                    used: min(max($0.utilization, 0), 100),
+                    reset: $0.resetsAt.map(Formatters.resetCompact))
+        }
+        var lines: [String] = []
+        if data.kind.hasLocalUsage {
+            let today = data.snapshot.today
+            lines.append("\(L.t("today")) \(Formatters.cost(today.cost)) · \(Formatters.tokens(today.totalTokens)) tokens")
+        }
+        if data.kind == .deepSeek, let balance = data.plan.credits?.balance {
+            lines.append("\(L.t("balance")) \(Formatters.money(balance) ?? balance)")
+        }
+        return WSProvider(name: data.kind.name,
+                          colorHex: data.kind.colorHex,
+                          subscription: data.plan.subscription,
+                          gauges: gauges,
+                          lines: lines,
+                          limitReached: data.plan.limitReachedReason)
     }
 }
 

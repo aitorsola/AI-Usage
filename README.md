@@ -1,6 +1,6 @@
 # AI Usage
 
-A native macOS menu bar app to keep an eye on your AI assistant usage — **Claude**, **OpenAI**, **OpenCode** and **DeepSeek** — without leaving the keyboard: plan limits at a glance, token counts, cost and prepaid balance.
+A native macOS menu bar app — with a desktop widget — to keep an eye on your AI assistant usage — **Claude**, **OpenAI**, **OpenCode** and **DeepSeek** — without leaving the keyboard: plan limits at a glance, token counts, cost and prepaid balance.
 
 ## Features
 
@@ -11,6 +11,7 @@ A native macOS menu bar app to keep an eye on your AI assistant usage — **Clau
   - **OpenCode** — token usage and cost read from OpenCode's local database, broken down by model. OpenCode has no subscription, so there are no percentages — just tokens and cost (which OpenCode itself has already computed).
   - **DeepSeek** — prepaid API balance from DeepSeek's official endpoint, using an API key you paste in.
 - **Dashboard window** — per-provider tabs with today / current block / 7-day / 30-day cards, plan limit gauges, daily history bars and a per-model breakdown.
+- **Desktop widget** — a WidgetKit widget that mirrors the panel on your desktop or Notification Center, in three sizes: *small* shows your primary provider's session and weekly gauges with reset countdowns; *medium* keeps the first provider with today's cost and tokens; *large* mirrors the whole panel — every enabled provider plus the 7-day chart (shown only when the weekly section is on). App and widget share a ready-to-render snapshot through an App Group.
 - **Plan extras, only when they exist** — Claude extra usage (monthly overage in dollars), OpenAI credits balance, individual spend limits, DeepSeek balance, and a red banner with the reason whenever a limit is hit. Empty data never renders empty UI.
 - **Three ways to connect**
   - **Browser OAuth** (Claude, OpenAI) — OAuth 2.0 + PKCE with a local callback server, the same public flows used by Claude Code (port 54545) and Codex CLI (port 1455). The app never reads other apps' credentials, so macOS never shows keychain permission prompts.
@@ -23,22 +24,17 @@ A native macOS menu bar app to keep an eye on your AI assistant usage — **Clau
 ## Requirements
 
 - macOS 14 or later (Apple Silicon and Intel).
-- To build: Xcode 15+ command line tools.
+- Xcode 15+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) — the build generates an Xcode project that bundles the app together with its widget extension.
 
 ## Build & install
 
 ```sh
-./build.sh
+brew install xcodegen   # once
+./build_xcode.sh
 open "/Applications/AI Usage.app"
 ```
 
-The script compiles a release build, packages `AI Usage.app` into `/Applications`, generates the icon and signs the bundle. Signing picks, in order: the `CODESIGN_IDENTITY` environment variable, the first *Apple Development* identity in your keychain, or an ad-hoc signature. A stable identity is recommended so Keychain approvals survive rebuilds.
-
-To build a universal binary for distribution:
-
-```sh
-swift build -c release --arch arm64 --arch x86_64
-```
+`build_xcode.sh` generates the icon asset catalog, runs XcodeGen to produce `AIUsage.xcodeproj` from `project.yml`, builds the app and the widget extension, signs both bundles manually and installs `AI Usage.app` into `/Applications`. Signing picks, in order: the `CODESIGN_IDENTITY` environment variable, the first *Apple Development* identity in your keychain, or an ad-hoc signature. A stable identity is recommended so Keychain approvals survive rebuilds. The app and widget share data through the `group.dev.aitor.ai-usage` App Group, so both targets are signed with matching entitlements from `Signing/`.
 
 ## How it works
 
@@ -69,24 +65,33 @@ Everything runs locally. The only network requests are the usage/profile/balance
 ## Project layout
 
 ```
-Sources/AIUsage/
-├── AIUsageApp.swift        # App entry point, scenes
-├── UsageStore.swift        # Refresh loop, provider state
-├── UsageParser.swift       # Claude Code transcript parsing + aggregation
-├── CodexParser.swift       # Codex CLI session parsing, rate-limit schema
-├── OpenCodeParser.swift    # OpenCode SQLite database reader
-├── PlanFetcher.swift       # Anthropic usage/profile endpoints
-├── OpenAIAuth.swift        # OpenAI OAuth, token store, usage endpoint
-├── AnthropicAuth.swift     # Anthropic OAuth, loopback callback server
-├── DeepSeekAuth.swift      # DeepSeek API key store + balance endpoint
-├── Pricing.swift           # Per-model price tables
-├── Localization.swift      # Language detection + translation catalog
-├── MenuContentView.swift   # Menu bar dropdown
-├── DashboardView.swift     # Main window
-├── SettingsView.swift      # Preferences
-├── LoginView.swift         # Sign-in window
-├── Components.swift        # Shared UI pieces
-└── StatusItemMenu.swift    # Right-click context menu
+├── project.yml             # XcodeGen spec (app + widget targets)
+├── build_xcode.sh          # Generate project, build, sign, install
+├── Sources/AIUsage/        # Menu bar app
+│   ├── AIUsageApp.swift        # App entry point, scenes
+│   ├── UsageStore.swift        # Refresh loop, provider state, widget snapshot
+│   ├── UsageParser.swift       # Claude Code transcript parsing + aggregation
+│   ├── CodexParser.swift       # Codex CLI session parsing, rate-limit schema
+│   ├── OpenCodeParser.swift    # OpenCode SQLite database reader
+│   ├── PlanFetcher.swift       # Anthropic usage/profile endpoints
+│   ├── OpenAIAuth.swift        # OpenAI OAuth, token store, usage endpoint
+│   ├── AnthropicAuth.swift     # Anthropic OAuth, loopback callback server
+│   ├── DeepSeekAuth.swift      # DeepSeek API key store + balance endpoint
+│   ├── Pricing.swift           # Per-model price tables
+│   ├── Localization.swift      # Language detection + translation catalog
+│   ├── MenuContentView.swift   # Menu bar dropdown + status label
+│   ├── DashboardView.swift     # Main window
+│   ├── SettingsView.swift      # Preferences
+│   ├── LoginView.swift         # Sign-in window
+│   ├── Components.swift        # Shared UI pieces
+│   └── StatusItemMenu.swift    # Right-click context menu
+├── WidgetExtension/
+│   └── AIUsageWidget.swift  # WidgetKit widget (small / medium / large)
+├── Shared/
+│   └── WidgetShared.swift   # App-Group snapshot model, shared by both targets
+└── Signing/
+    ├── App.entitlements     # App Group entitlement (main app)
+    └── Widget.entitlements  # App Group + sandbox (widget extension)
 ```
 
 ## Notes

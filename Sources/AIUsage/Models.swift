@@ -139,6 +139,15 @@ enum ProviderKind: String, CaseIterable {
         case .deepSeek: return false
         }
     }
+
+    var colorHex: String {
+        switch self {
+        case .anthropic: return "#D97757"
+        case .openAI: return "#10A37F"
+        case .openCode: return "#8B7CF6"
+        case .deepSeek: return "#4D6BFE"
+        }
+    }
 }
 
 struct ProviderData {

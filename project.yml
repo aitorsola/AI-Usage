@@ -1,0 +1,65 @@
+name: AIUsage
+options:
+  bundleIdPrefix: dev.aitor
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.3"
+    CURRENT_PROJECT_VERSION: "4"
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "NO"
+
+targets:
+  AIUsage:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/AIUsage
+      - path: Shared
+      - path: Resources
+    settings:
+      base:
+        PRODUCT_NAME: "AI Usage"
+        PRODUCT_BUNDLE_IDENTIFIER: dev.aitor.ai-usage
+        CODE_SIGN_ENTITLEMENTS: Signing/App.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        COMBINE_HIDPI_IMAGES: "YES"
+    info:
+      path: Signing/AppInfo.plist
+      properties:
+        CFBundleName: AI Usage
+        CFBundleDisplayName: AI Usage
+        CFBundleShortVersionString: "1.3"
+        CFBundleVersion: "4"
+        LSUIElement: true
+        LSMinimumSystemVersion: "14.0"
+        NSHighResolutionCapable: true
+    dependencies:
+      - target: AIUsageWidget
+        embed: true
+
+  AIUsageWidget:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: WidgetExtension
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_NAME: AIUsageWidget
+        PRODUCT_BUNDLE_IDENTIFIER: dev.aitor.ai-usage.AIUsageWidget
+        CODE_SIGN_ENTITLEMENTS: Signing/Widget.entitlements
+    info:
+      path: Signing/WidgetInfo.plist
+      properties:
+        CFBundleDisplayName: AI Usage
+        CFBundleShortVersionString: "1.3"
+        CFBundleVersion: "4"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension

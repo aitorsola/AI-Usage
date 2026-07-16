@@ -54,6 +54,11 @@ enum Formatters {
                       dayMedium(d), time(d))
     }
 
+    // Short reset text for tight spaces (widget): countdown within a day, else the day.
+    static func resetCompact(_ d: Date) -> String {
+        d.timeIntervalSinceNow < 24 * 3600 ? remaining(until: d) : dayMedium(d)
+    }
+
     private static let dayShortFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = .autoupdatingCurrent
