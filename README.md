@@ -81,33 +81,51 @@ Everything runs locally. The only network requests are the usage/profile/balance
 ## Project layout
 
 ```
-├── project.yml             # XcodeGen spec (app + widget targets)
-├── build_xcode.sh          # Generate project, build, sign, install
-├── Sources/AIUsage/        # Menu bar app
-│   ├── AIUsageApp.swift        # App entry point, scenes
-│   ├── UsageStore.swift        # Refresh loop, provider state, widget snapshot
-│   ├── UsageParser.swift       # Claude Code transcript parsing + aggregation
-│   ├── CodexParser.swift       # Codex CLI session parsing, rate-limit schema
-│   ├── OpenCodeParser.swift    # OpenCode SQLite database reader
-│   ├── PlanFetcher.swift       # Anthropic usage/profile endpoints
-│   ├── OpenAIAuth.swift        # OpenAI OAuth, token store, usage endpoint
-│   ├── AnthropicAuth.swift     # Anthropic OAuth, loopback callback server
-│   ├── DeepSeekAuth.swift      # DeepSeek API key store + balance endpoint
-│   ├── Pricing.swift           # Per-model price tables
-│   ├── Localization.swift      # Language detection + translation catalog
-│   ├── MenuContentView.swift   # Menu bar dropdown + status label
-│   ├── DashboardView.swift     # Main window
-│   ├── SettingsView.swift      # Preferences
-│   ├── LoginView.swift         # Sign-in window
-│   ├── Components.swift        # Shared UI pieces
-│   └── StatusItemMenu.swift    # Right-click context menu
+├── project.yml                     # XcodeGen spec (app + widget targets)
+├── build_xcode.sh                  # Generate project, build, sign, install locally
+├── release.sh                      # Universal build → Developer ID sign → notarize → .dmg
+├── scripts/
+│   └── make_icon.swift             # Generates the app icon asset catalog
+├── Sources/AIUsage/                # Menu bar app
+│   ├── App/
+│   │   ├── AIUsageApp.swift             # App entry point, scenes and windows
+│   │   └── StatusItemMenu.swift         # Menu bar icon + right-click context menu
+│   ├── Core/
+│   │   ├── UsageStore.swift             # Refresh loop, provider state, widget snapshot
+│   │   ├── Aggregator.swift             # Rolls parsed entries into periods and totals
+│   │   ├── Pricing.swift                # Per-model price tables
+│   │   └── DemoData.swift               # Fabricated data for screenshots (-demo flag)
+│   ├── Models/
+│   │   ├── Models.swift                 # Core usage / plan data types
+│   │   └── AppSettings.swift            # Settings keys, menu-section configuration
+│   ├── Providers/
+│   │   ├── Anthropic/                   # Claude: OAuth, transcript parsing, plan endpoint
+│   │   │   ├── AnthropicAuth.swift
+│   │   │   ├── UsageParser.swift
+│   │   │   └── PlanFetcher.swift
+│   │   ├── OpenAI/                      # Codex CLI: OAuth + session parsing
+│   │   │   ├── OpenAIAuth.swift
+│   │   │   └── CodexParser.swift
+│   │   ├── OpenCode/
+│   │   │   └── OpenCodeParser.swift     # OpenCode SQLite database reader
+│   │   └── DeepSeek/
+│   │       └── DeepSeekAuth.swift       # API key store + balance endpoint
+│   ├── Views/
+│   │   ├── MenuContentView.swift        # Menu bar dropdown + status label
+│   │   ├── DashboardView.swift          # Main window
+│   │   ├── SettingsView.swift           # Preferences
+│   │   ├── LoginView.swift              # Sign-in window
+│   │   └── Components.swift             # Shared UI pieces
+│   └── Support/
+│       └── Formatters.swift             # Number, date and cost formatting
 ├── WidgetExtension/
-│   └── AIUsageWidget.swift  # WidgetKit widget (small / medium / large)
-├── Shared/
-│   └── WidgetShared.swift   # App-Group snapshot model, shared by both targets
+│   └── AIUsageWidget.swift          # WidgetKit widget (small / medium / large)
+├── Shared/                          # Compiled into both the app and the widget
+│   ├── WidgetShared.swift               # App-Group snapshot model
+│   └── Localization.swift               # Language detection + translation catalog
 └── Signing/
-    ├── App.entitlements     # App Group entitlement (main app)
-    └── Widget.entitlements  # App Group + sandbox (widget extension)
+    ├── App.entitlements                 # App Group entitlement (main app)
+    └── Widget.entitlements              # App Group + sandbox (widget extension)
 ```
 
 ## Notes
