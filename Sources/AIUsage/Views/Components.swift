@@ -1,3 +1,10 @@
+//
+//  Components.swift
+//  AI Usage
+//
+//  Copyright © 2026 Aitor Sola. All rights reserved.
+//
+
 import SwiftUI
 
 extension ProviderKind {

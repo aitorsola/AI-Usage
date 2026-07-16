@@ -1,3 +1,10 @@
+//
+//  AIUsageApp.swift
+//  AI Usage
+//
+//  Copyright © 2026 Aitor Sola. All rights reserved.
+//
+
 import SwiftUI
 
 @main
@@ -17,12 +24,12 @@ struct AIUsageApp: App {
         }
         .defaultSize(width: 720, height: 680)
 
-        Window("Conectar con Claude", id: "login") {
+        Window(String(format: L.t("connect_with"), "Claude"), id: "login") {
             LoginView(store: store, config: .anthropic)
         }
         .windowResizability(.contentSize)
 
-        Window("Conectar con OpenAI", id: "login-openai") {
+        Window(String(format: L.t("connect_with"), "OpenAI"), id: "login-openai") {
             LoginView(store: store, config: .openAI)
         }
         .windowResizability(.contentSize)

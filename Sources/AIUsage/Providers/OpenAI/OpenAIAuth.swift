@@ -1,3 +1,10 @@
+//
+//  OpenAIAuth.swift
+//  AI Usage
+//
+//  Copyright © 2026 Aitor Sola. All rights reserved.
+//
+
 import Foundation
 import CryptoKit
 import Security
@@ -70,7 +77,7 @@ enum OpenAIOAuth {
         URLSession.shared.dataTask(with: req) { data, resp, err in
             if let err { completion(nil, err.localizedDescription); return }
             guard let http = resp as? HTTPURLResponse, let data else {
-                completion(nil, "respuesta no válida"); return
+                completion(nil, L.t("invalid_response")); return
             }
             guard http.statusCode == 200,
                   let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],

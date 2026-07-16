@@ -1,3 +1,10 @@
+//
+//  PlanFetcher.swift
+//  AI Usage
+//
+//  Copyright © 2026 Aitor Sola. All rights reserved.
+//
+
 import Foundation
 import Security
 

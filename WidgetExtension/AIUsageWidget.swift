@@ -1,3 +1,10 @@
+//
+//  AIUsageWidget.swift
+//  AI Usage Widget
+//
+//  Copyright © 2026 Aitor Sola. All rights reserved.
+//
+
 import WidgetKit
 import SwiftUI
 

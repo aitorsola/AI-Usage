@@ -1,3 +1,10 @@
+//
+//  AnthropicAuth.swift
+//  AI Usage
+//
+//  Copyright © 2026 Aitor Sola. All rights reserved.
+//
+
 import Foundation
 import AppKit
 import CryptoKit
@@ -81,7 +88,7 @@ enum AnthropicOAuth {
         URLSession.shared.dataTask(with: req) { data, resp, err in
             if let err { completion(nil, err.localizedDescription); return }
             guard let http = resp as? HTTPURLResponse, let data else {
-                completion(nil, "respuesta no válida"); return
+                completion(nil, L.t("invalid_response")); return
             }
             guard http.statusCode == 200,
                   let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
@@ -263,7 +270,7 @@ final class LoginFlowController: ObservableObject {
                     self.stage = .success
                     self.onSuccess?()
                 } else {
-                    self.stage = .failure(error ?? "error desconocido")
+                    self.stage = .failure(error ?? L.t("unknown_error"))
                 }
             }
         }

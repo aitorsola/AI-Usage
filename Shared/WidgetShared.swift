@@ -1,3 +1,10 @@
+//
+//  WidgetShared.swift
+//  AI Usage
+//
+//  Copyright © 2026 Aitor Sola. All rights reserved.
+//
+
 import Foundation
 
 // Data shared between the main app and the widget extension via the App Group container.
@@ -31,14 +38,14 @@ struct WidgetSnapshot: Codable, Hashable {
     static let placeholder = WidgetSnapshot(
         providers: [
             WSProvider(name: "Claude", colorHex: "#D97757", subscription: nil,
-                       gauges: [WSGauge(label: "Sesión", used: 37, reset: "2 h 30 min"),
-                                WSGauge(label: "Semana", used: 13, reset: "mié 18 jul")],
+                       gauges: [WSGauge(label: L.t("session_5_h"), used: 37),
+                                WSGauge(label: L.t("week"), used: 13)],
                        lines: [], limitReached: nil),
             WSProvider(name: "OpenAI", colorHex: "#10A37F", subscription: nil,
-                       gauges: [WSGauge(label: "Primary", used: 52)], lines: [], limitReached: nil),
+                       gauges: [WSGauge(label: L.t("session_5_h"), used: 52)], lines: [], limitReached: nil),
         ],
         showRemaining: true,
-        weekTitle: "Últimos 7 días",
+        weekTitle: L.t("last_7_days"),
         weekBars: [0.3, 0.5, 0.9, 0.4, 0.7, 0.6, 0.8],
         updatedText: "",
         date: Date(timeIntervalSince1970: 0)

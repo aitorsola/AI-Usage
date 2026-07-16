@@ -1,3 +1,10 @@
+//
+//  Localization.swift
+//  AI Usage
+//
+//  Copyright © 2026 Aitor Sola. All rights reserved.
+//
+
 import Foundation
 
 enum AppLanguage: String {
@@ -36,6 +43,8 @@ enum Translations {
     ]
 
     private static let es: [String: String] = [
+        "unknown_error": "Error desconocido",
+        "plan_badge": "Plan %@",
         "balance": "Saldo",
         "add_deepseek_key_in_settings": "Añade tu API key de DeepSeek en Ajustes.",
         "balance_depleted": "Saldo agotado",
@@ -124,6 +133,7 @@ enum Translations {
         "settings_2": "Ajustes…",
         "show_limits_as": "Mostrar límites como",
         "sign_in_with": "Iniciar sesión con %@",
+        "connect_with": "Conectar con %@",
         "sign_in_with_claude": "Iniciar sesión con Claude…",
         "sign_in_with_openai": "Iniciar sesión con OpenAI…",
         "sign_out": "Cerrar sesión",
@@ -155,6 +165,8 @@ enum Translations {
     ]
 
     private static let en: [String: String] = [
+        "unknown_error": "Unknown error",
+        "plan_badge": "%@ plan",
         "balance": "Balance",
         "add_deepseek_key_in_settings": "Add your DeepSeek API key in Settings.",
         "balance_depleted": "Balance depleted",
@@ -243,6 +255,7 @@ enum Translations {
         "settings_2": "Settings…",
         "show_limits_as": "Show limits as",
         "sign_in_with": "Sign in with %@",
+        "connect_with": "Connect to %@",
         "sign_in_with_claude": "Sign in with Claude…",
         "sign_in_with_openai": "Sign in with OpenAI…",
         "sign_out": "Sign out",
@@ -274,6 +287,8 @@ enum Translations {
     ]
 
     private static let fr: [String: String] = [
+        "unknown_error": "Erreur inconnue",
+        "plan_badge": "Forfait %@",
         "balance": "Solde",
         "add_deepseek_key_in_settings": "Ajoutez votre clé API DeepSeek dans les réglages.",
         "balance_depleted": "Solde épuisé",
@@ -362,6 +377,7 @@ enum Translations {
         "settings_2": "Réglages…",
         "show_limits_as": "Afficher les limites en",
         "sign_in_with": "Se connecter avec %@",
+        "connect_with": "Se connecter à %@",
         "sign_in_with_claude": "Se connecter avec Claude…",
         "sign_in_with_openai": "Se connecter avec OpenAI…",
         "sign_out": "Se déconnecter",
@@ -393,6 +409,8 @@ enum Translations {
     ]
 
     private static let de: [String: String] = [
+        "unknown_error": "Unbekannter Fehler",
+        "plan_badge": "Tarif %@",
         "balance": "Guthaben",
         "add_deepseek_key_in_settings": "Füge deinen DeepSeek-API-Schlüssel in den Einstellungen hinzu.",
         "balance_depleted": "Guthaben aufgebraucht",
@@ -481,6 +499,7 @@ enum Translations {
         "settings_2": "Einstellungen…",
         "show_limits_as": "Limits anzeigen als",
         "sign_in_with": "Mit %@ anmelden",
+        "connect_with": "Mit %@ verbinden",
         "sign_in_with_claude": "Mit Claude anmelden…",
         "sign_in_with_openai": "Mit OpenAI anmelden…",
         "sign_out": "Abmelden",
@@ -512,6 +531,8 @@ enum Translations {
     ]
 
     private static let it: [String: String] = [
+        "unknown_error": "Errore sconosciuto",
+        "plan_badge": "Piano %@",
         "balance": "Saldo",
         "add_deepseek_key_in_settings": "Aggiungi la tua chiave API DeepSeek nelle impostazioni.",
         "balance_depleted": "Saldo esaurito",
@@ -600,6 +621,7 @@ enum Translations {
         "settings_2": "Impostazioni…",
         "show_limits_as": "Mostra i limiti come",
         "sign_in_with": "Accedi con %@",
+        "connect_with": "Connetti a %@",
         "sign_in_with_claude": "Accedi con Claude…",
         "sign_in_with_openai": "Accedi con OpenAI…",
         "sign_out": "Disconnetti",
@@ -631,6 +653,8 @@ enum Translations {
     ]
 
     private static let pt: [String: String] = [
+        "unknown_error": "Erro desconhecido",
+        "plan_badge": "Plano %@",
         "balance": "Saldo",
         "add_deepseek_key_in_settings": "Adiciona a tua chave de API DeepSeek nas definições.",
         "balance_depleted": "Saldo esgotado",
@@ -719,6 +743,7 @@ enum Translations {
         "settings_2": "Definições…",
         "show_limits_as": "Mostrar limites como",
         "sign_in_with": "Iniciar sessão com %@",
+        "connect_with": "Conectar a %@",
         "sign_in_with_claude": "Iniciar sessão com Claude…",
         "sign_in_with_openai": "Iniciar sessão com OpenAI…",
         "sign_out": "Terminar sessão",
@@ -750,6 +775,8 @@ enum Translations {
     ]
 
     private static let ja: [String: String] = [
+        "unknown_error": "不明なエラー",
+        "plan_badge": "%@ プラン",
         "balance": "残高",
         "add_deepseek_key_in_settings": "設定でDeepSeek APIキーを追加してください。",
         "balance_depleted": "残高がありません",
@@ -838,6 +865,7 @@ enum Translations {
         "settings_2": "設定…",
         "show_limits_as": "上限の表示方法",
         "sign_in_with": "%@ でサインイン",
+        "connect_with": "%@ に接続",
         "sign_in_with_claude": "Claudeでサインイン…",
         "sign_in_with_openai": "OpenAIでサインイン…",
         "sign_out": "ログアウト",
@@ -869,6 +897,8 @@ enum Translations {
     ]
 
     private static let zh: [String: String] = [
+        "unknown_error": "未知错误",
+        "plan_badge": "%@ 套餐",
         "balance": "余额",
         "add_deepseek_key_in_settings": "在设置中添加你的 DeepSeek API 密钥。",
         "balance_depleted": "余额已用尽",
@@ -957,6 +987,7 @@ enum Translations {
         "settings_2": "设置…",
         "show_limits_as": "限额显示为",
         "sign_in_with": "使用 %@ 登录",
+        "connect_with": "连接到 %@",
         "sign_in_with_claude": "使用 Claude 登录…",
         "sign_in_with_openai": "使用 OpenAI 登录…",
         "sign_out": "退出登录",
@@ -988,6 +1019,8 @@ enum Translations {
     ]
 
     private static let ko: [String: String] = [
+        "unknown_error": "알 수 없는 오류",
+        "plan_badge": "%@ 요금제",
         "balance": "잔액",
         "add_deepseek_key_in_settings": "설정에서 DeepSeek API 키를 추가하세요.",
         "balance_depleted": "잔액 소진",
@@ -1076,6 +1109,7 @@ enum Translations {
         "settings_2": "설정…",
         "show_limits_as": "한도 표시 방식",
         "sign_in_with": "%@ 로그인",
+        "connect_with": "%@에 연결",
         "sign_in_with_claude": "Claude 로그인…",
         "sign_in_with_openai": "OpenAI 로그인…",
         "sign_out": "로그아웃",
@@ -1107,6 +1141,8 @@ enum Translations {
     ]
 
     private static let ru: [String: String] = [
+        "unknown_error": "Неизвестная ошибка",
+        "plan_badge": "Тариф %@",
         "balance": "Баланс",
         "add_deepseek_key_in_settings": "Добавьте API-ключ DeepSeek в настройках.",
         "balance_depleted": "Баланс исчерпан",
@@ -1195,6 +1231,7 @@ enum Translations {
         "settings_2": "Настройки…",
         "show_limits_as": "Показывать лимиты как",
         "sign_in_with": "Войти через %@",
+        "connect_with": "Подключиться к %@",
         "sign_in_with_claude": "Войти через Claude…",
         "sign_in_with_openai": "Войти через OpenAI…",
         "sign_out": "Выйти",
