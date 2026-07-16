@@ -216,6 +216,9 @@ enum OpenAITokenStore {
 
 enum CodexAuthFile {
     static func load() -> OpenAIOAuth.Credentials? {
+        #if !os(macOS)
+        return nil   // iOS has no local Codex CLI auth file.
+        #else
         let url = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".codex/auth.json")
         guard let data = try? Data(contentsOf: url),
@@ -232,6 +235,7 @@ enum CodexAuthFile {
                 ?? OpenAIOAuth.accountID(idToken: idToken, accessToken: access),
             planType: OpenAIOAuth.planType(idToken: idToken, accessToken: access),
             email: OpenAIOAuth.email(idToken: idToken, accessToken: access))
+        #endif
     }
 }
 

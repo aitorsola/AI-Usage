@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: dev.aitor
   deploymentTarget:
     macOS: "14.0"
+    iOS: "17.0"
   createIntermediateGroups: true
 
 settings:
@@ -65,10 +66,80 @@ targets:
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
+  AIUsageiOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: iOS
+      - path: Core
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_NAME: "AI Usage"
+        PRODUCT_BUNDLE_IDENTIFIER: dev.aitor.ai-usage
+        CODE_SIGN_ENTITLEMENTS: Signing/iOSApp.entitlements
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: SK4CMEFH7T
+        CODE_SIGN_IDENTITY: "Apple Development"
+        CODE_SIGNING_ALLOWED: "YES"
+        CODE_SIGNING_REQUIRED: "YES"
+    info:
+      path: Signing/iOSAppInfo.plist
+      properties:
+        CFBundleName: AI Usage
+        CFBundleDisplayName: AI Usage
+        CFBundleShortVersionString: "1.3"
+        CFBundleVersion: "4"
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    dependencies:
+      - target: AIUsageWidgetiOS
+        embed: true
+
+  AIUsageWidgetiOS:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: iOSWidget
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_NAME: AIUsageiOSWidget
+        PRODUCT_BUNDLE_IDENTIFIER: dev.aitor.ai-usage.iOSWidget
+        CODE_SIGN_ENTITLEMENTS: Signing/iOSWidget.entitlements
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: SK4CMEFH7T
+        CODE_SIGN_IDENTITY: "Apple Development"
+        CODE_SIGNING_ALLOWED: "YES"
+        CODE_SIGNING_REQUIRED: "YES"
+    info:
+      path: Signing/iOSWidgetInfo.plist
+      properties:
+        CFBundleDisplayName: AI Usage
+        CFBundleShortVersionString: "1.3"
+        CFBundleVersion: "4"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+
 schemes:
   AIUsage:
     build:
       targets:
         AIUsage: all
+    run:
+      config: Release
+  AIUsageiOS:
+    build:
+      targets:
+        AIUsageiOS: all
     run:
       config: Release

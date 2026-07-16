@@ -6,7 +6,9 @@
 //
 
 import Foundation
+#if os(macOS)
 import AppKit
+#endif
 import CryptoKit
 import Network
 import Security
@@ -217,6 +219,9 @@ final class LoginFlowController: ObservableObject {
 
     @Published var stage: Stage = .idle
     var onSuccess: (() -> Void)?
+    // iOS injects how to open the authorize URL (ASWebAuthenticationSession);
+    // on macOS the browser is opened directly with NSWorkspace.
+    var iosOpen: ((URL) -> Void)?
     let config: OAuthFlowConfig
 
     private var verifier = ""
@@ -241,15 +246,22 @@ final class LoginFlowController: ObservableObject {
             return
         }
         stage = .waitingBrowser(manual: !localOK)
-        NSWorkspace.shared.open(config.makeAuthorizeURL(verifier, redirect))
+        let authURL = config.makeAuthorizeURL(verifier, redirect)
+        #if os(macOS)
+        NSWorkspace.shared.open(authURL)
+        #else
+        iosOpen?(authURL)
+        #endif
     }
 
     func copyAuthorizeURL() {
+        #if os(macOS)
         guard !verifier.isEmpty else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(
             config.makeAuthorizeURL(verifier, redirect).absoluteString,
             forType: .string)
+        #endif
     }
 
     func submitManualCode(_ pasted: String) {
