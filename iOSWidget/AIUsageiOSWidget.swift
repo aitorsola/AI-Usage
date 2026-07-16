@@ -120,7 +120,7 @@ struct AIUsageiOSWidget: Widget {
             AIUsageiOSWidgetView(entry: entry)
         }
         .configurationDisplayName("AI Usage")
-        .description("AI Usage")
+        .description(L.t("widget_description"))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }

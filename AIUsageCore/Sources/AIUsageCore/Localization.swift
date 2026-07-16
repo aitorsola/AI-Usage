@@ -43,6 +43,7 @@ enum Translations {
     ]
 
     private static let es: [String: String] = [
+        "widget_description": "Uso de tus asistentes de IA de un vistazo.",
         "unknown_error": "Error desconocido",
         "plan_badge": "Plan %@",
         "balance": "Saldo",
@@ -165,6 +166,7 @@ enum Translations {
     ]
 
     private static let en: [String: String] = [
+        "widget_description": "Your AI assistant usage at a glance.",
         "unknown_error": "Unknown error",
         "plan_badge": "%@ plan",
         "balance": "Balance",
@@ -287,6 +289,7 @@ enum Translations {
     ]
 
     private static let fr: [String: String] = [
+        "widget_description": "L’utilisation de vos assistants IA en un coup d’œil.",
         "unknown_error": "Erreur inconnue",
         "plan_badge": "Forfait %@",
         "balance": "Solde",
@@ -409,6 +412,7 @@ enum Translations {
     ]
 
     private static let de: [String: String] = [
+        "widget_description": "Die Nutzung deiner KI-Assistenten auf einen Blick.",
         "unknown_error": "Unbekannter Fehler",
         "plan_badge": "Tarif %@",
         "balance": "Guthaben",
@@ -531,6 +535,7 @@ enum Translations {
     ]
 
     private static let it: [String: String] = [
+        "widget_description": "L’utilizzo dei tuoi assistenti IA a colpo d’occhio.",
         "unknown_error": "Errore sconosciuto",
         "plan_badge": "Piano %@",
         "balance": "Saldo",
@@ -653,6 +658,7 @@ enum Translations {
     ]
 
     private static let pt: [String: String] = [
+        "widget_description": "O uso dos seus assistentes de IA num relance.",
         "unknown_error": "Erro desconhecido",
         "plan_badge": "Plano %@",
         "balance": "Saldo",
@@ -775,6 +781,7 @@ enum Translations {
     ]
 
     private static let ja: [String: String] = [
+        "widget_description": "AIアシスタントの使用状況をひと目で。",
         "unknown_error": "不明なエラー",
         "plan_badge": "%@ プラン",
         "balance": "残高",
@@ -897,6 +904,7 @@ enum Translations {
     ]
 
     private static let zh: [String: String] = [
+        "widget_description": "一目了然地查看你的 AI 助手用量。",
         "unknown_error": "未知错误",
         "plan_badge": "%@ 套餐",
         "balance": "余额",
@@ -1019,6 +1027,7 @@ enum Translations {
     ]
 
     private static let ko: [String: String] = [
+        "widget_description": "AI 어시스턴트 사용량을 한눈에 확인하세요.",
         "unknown_error": "알 수 없는 오류",
         "plan_badge": "%@ 요금제",
         "balance": "잔액",
@@ -1141,6 +1150,7 @@ enum Translations {
     ]
 
     private static let ru: [String: String] = [
+        "widget_description": "Использование ваших ИИ-ассистентов с первого взгляда.",
         "unknown_error": "Неизвестная ошибка",
         "plan_badge": "Тариф %@",
         "balance": "Баланс",

@@ -242,7 +242,7 @@ struct AIUsageWidget: Widget {
                 .containerBackground(.background, for: .widget)
         }
         .configurationDisplayName("AI Usage")
-        .description("Uso de tus asistentes de IA de un vistazo.")
+        .description(L.t("widget_description"))
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
