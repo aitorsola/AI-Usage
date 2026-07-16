@@ -1,3 +1,10 @@
+//
+//  DashboardView.swift
+//  AI Usage
+//
+//  Copyright © 2026 Aitor Sola. All rights reserved.
+//
+
 import SwiftUI
 import AppKit
 
@@ -66,9 +73,10 @@ struct DashboardView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(maxWidth: 460)
+            .fixedSize()
+            .tint(current.kind.color)
             if let sub = current.plan.subscription {
-                Text("Plan \(sub.capitalized)")
+                Text(String(format: L.t("plan_badge"), sub.capitalized))
                     .font(.caption)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)

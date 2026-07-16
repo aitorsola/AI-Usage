@@ -1,3 +1,10 @@
+//
+//  UsageStore.swift
+//  AI Usage
+//
+//  Copyright © 2026 Aitor Sola. All rights reserved.
+//
+
 import Foundation
 import Combine
 import WidgetKit
@@ -19,10 +26,26 @@ final class UsageStore: ObservableObject {
     private var refreshing = false
 
     init() {
+//        if UserDefaults.standard.bool(forKey: "demo") {
+//            loadDemo()
+//            return
+//        }
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             self?.refresh()
         }
+    }
+
+    // Populate with fabricated, privacy-safe data for screenshots (see DemoData).
+    private func loadDemo() {
+        let d = DemoData.make()
+        anthropic = d.anthropic
+        openAI = d.openAI
+        openCode = d.openCode
+        deepSeek = d.deepSeek
+        lastUpdated = Date()
+        hasLoaded = true
+        updateWidgetSnapshot()
     }
 
     func refresh() {
