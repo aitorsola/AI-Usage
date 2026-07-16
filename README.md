@@ -1,11 +1,5 @@
 <p align="center">
- <img src="https://github.com/user-attachments/assets/864bf8c1-37ef-4564-a67d-138bfcc37fbe" height="360" alt="Menu bar panel">
-  &nbsp;&nbsp;
- <img src="https://github.com/user-attachments/assets/ffab120f-0451-449e-91d1-4329d1aa8544" height="360" alt="Desktop widget — three sizes">
-</p>
-
-<p align="center">
- <img src="https://github.com/user-attachments/assets/b276963b-efcb-4aee-8e28-762f389e532f" width="680" alt="Dashboard window">
+ <img width="1926" height="1028" alt="AI-Usage-linkedin" src="https://github.com/user-attachments/assets/4509bcb3-a1ff-4ab3-8751-4bee65a7e83f" />
 </p>
 
 # AI Usage
