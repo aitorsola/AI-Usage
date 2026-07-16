@@ -10,20 +10,20 @@ import Foundation
 // User-facing settings model: storage keys and the enums that describe what the
 // menu bar and dropdown can show. Kept in Models so Core can depend on it without
 // reaching into the SettingsView layer.
-enum SettingsKeys {
-    static let limitDisplay = "limitDisplay"
-    static let menuSource = "menuSource"
-    static let menuSections = "menuSections"
+public enum SettingsKeys {
+    public static let limitDisplay = "limitDisplay"
+    public static let menuSource = "menuSource"
+    public static let menuSections = "menuSections"
 }
 
-enum MenuSectionID: String, CaseIterable {
+public enum MenuSectionID: String, CaseIterable {
     case claude
     case openai
     case openCode
     case deepSeek
     case week
 
-    var title: String {
+    public var title: String {
         switch self {
         case .claude: return "Claude"
         case .openai: return "OpenAI"
@@ -34,15 +34,20 @@ enum MenuSectionID: String, CaseIterable {
     }
 }
 
-struct MenuSectionSetting: Identifiable {
-    let id: MenuSectionID
-    var visible: Bool
+public struct MenuSectionSetting: Identifiable {
+    public let id: MenuSectionID
+    public var visible: Bool
+
+    public init(id: MenuSectionID, visible: Bool) {
+        self.id = id
+        self.visible = visible
+    }
 }
 
-enum MenuSectionsConfig {
-    static let storageDefault = "claude:1,openai:1,openCode:1,deepSeek:1,week:1"
+public enum MenuSectionsConfig {
+    public static let storageDefault = "claude:1,openai:1,openCode:1,deepSeek:1,week:1"
 
-    static func parse(_ raw: String) -> [MenuSectionSetting] {
+    public static func parse(_ raw: String) -> [MenuSectionSetting] {
         var items: [MenuSectionSetting] = []
         for part in raw.split(separator: ",") {
             let bits = part.split(separator: ":")
@@ -59,16 +64,16 @@ enum MenuSectionsConfig {
         return items
     }
 
-    static func serialize(_ items: [MenuSectionSetting]) -> String {
+    public static func serialize(_ items: [MenuSectionSetting]) -> String {
         items.map { "\($0.id.rawValue):\($0.visible ? "1" : "0")" }.joined(separator: ",")
     }
 }
 
-enum LimitDisplay: String, CaseIterable, Identifiable {
+public enum LimitDisplay: String, CaseIterable, Identifiable {
     case remaining
     case used
-    var id: String { rawValue }
-    var label: String {
+    public var id: String { rawValue }
+    public var label: String {
         switch self {
         case .remaining: return L.t("remaining")
         case .used: return L.t("used")
@@ -76,15 +81,15 @@ enum LimitDisplay: String, CaseIterable, Identifiable {
     }
 }
 
-enum MenuSource: String, CaseIterable, Identifiable {
+public enum MenuSource: String, CaseIterable, Identifiable {
     case auto
     case anthropic
     case openAI
     case openCode
     case deepSeek
     case cost
-    var id: String { rawValue }
-    var label: String {
+    public var id: String { rawValue }
+    public var label: String {
         switch self {
         case .auto: return L.t("automatic_claude_first")
         case .anthropic: return "Claude"

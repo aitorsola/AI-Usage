@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import AIUsageCore
 import AuthenticationServices
 
 // Drives the shared OAuth flow on iOS. The proven loopback listener in

@@ -6,6 +6,7 @@
 //
 
 import WidgetKit
+import AIUsageCore
 import SwiftUI
 
 // MARK: - Timeline

@@ -9,19 +9,19 @@ import Foundation
 import CryptoKit
 import Security
 
-enum OpenAIOAuth {
+public enum OpenAIOAuth {
     static let clientID = "app_EMoamEEZ73f0CkXaXp7hrann"
     static let redirect = "http://localhost:1455/auth/callback"
     static let authorizeEndpoint = "https://auth.openai.com/oauth/authorize"
     static let tokenEndpoint = "https://auth.openai.com/oauth/token"
 
-    struct Credentials {
-        let accessToken: String
-        let refreshToken: String?
-        let expiresAt: Date?
-        let accountID: String?
-        let planType: String?
-        let email: String?
+    public struct Credentials {
+        public let accessToken: String
+        public let refreshToken: String?
+        public let expiresAt: Date?
+        public let accountID: String?
+        public let planType: String?
+        public let email: String?
     }
 
     static func authorizeURL(verifier: String) -> URL {
@@ -160,10 +160,10 @@ enum OpenAIOAuth {
     }
 }
 
-enum OpenAITokenStore {
+public enum OpenAITokenStore {
     static let service = "AI Usage-openai-credentials"
 
-    static func load() -> OpenAIOAuth.Credentials? {
+    public static func load() -> OpenAIOAuth.Credentials? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -187,7 +187,7 @@ enum OpenAITokenStore {
                                        email: obj["email"] as? String)
     }
 
-    static func save(_ creds: OpenAIOAuth.Credentials) {
+    public static func save(_ creds: OpenAIOAuth.Credentials) {
         var payload: [String: Any] = ["accessToken": creds.accessToken]
         if let r = creds.refreshToken { payload["refreshToken"] = r }
         if let e = creds.expiresAt { payload["expiresAt"] = e.timeIntervalSince1970 * 1000 }
@@ -205,7 +205,7 @@ enum OpenAITokenStore {
         SecItemAdd(attrs as CFDictionary, nil)
     }
 
-    static func delete() {
+    public static func delete() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -214,8 +214,8 @@ enum OpenAITokenStore {
     }
 }
 
-enum CodexAuthFile {
-    static func load() -> OpenAIOAuth.Credentials? {
+public enum CodexAuthFile {
+    public static func load() -> OpenAIOAuth.Credentials? {
         #if !os(macOS)
         return nil   // iOS has no local Codex CLI auth file.
         #else
@@ -239,8 +239,8 @@ enum CodexAuthFile {
     }
 }
 
-enum OpenAIUsageFetcher {
-    static func fetch(completion: @escaping (PlanStatus) -> Void) {
+public enum OpenAIUsageFetcher {
+    public static func fetch(completion: @escaping (PlanStatus) -> Void) {
         resolveCredentials { creds, problem, needsLogin in
             guard let creds else {
                 completion(PlanStatus(gauges: [], subscription: nil,

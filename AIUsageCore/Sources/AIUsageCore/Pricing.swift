@@ -7,13 +7,13 @@
 
 import Foundation
 
-enum Pricing {
-    struct Rates {
+public enum Pricing {
+    public struct Rates {
         let input: Double
         let output: Double
     }
 
-    static func rates(for model: String) -> Rates {
+    public static func rates(for model: String) -> Rates {
         let m = model.lowercased()
         if m.contains("fable") || m.contains("mythos") { return Rates(input: 10, output: 50) }
         if m.contains("opus-4-1") || m.contains("opus-4-0") || m.contains("opus-4-2025") || m.contains("3-opus") {
@@ -26,7 +26,7 @@ enum Pricing {
         return Rates(input: 3, output: 15)
     }
 
-    static func cost(model: String, input: Int, output: Int, cacheRead: Int, w5m: Int, w1h: Int) -> Double {
+    public static func cost(model: String, input: Int, output: Int, cacheRead: Int, w5m: Int, w1h: Int) -> Double {
         let r = rates(for: model)
         let inPerTok = r.input / 1_000_000
         return Double(input) * inPerTok
@@ -36,13 +36,13 @@ enum Pricing {
             + Double(w1h) * inPerTok * 2.0
     }
 
-    struct OpenAIRates {
+    public struct OpenAIRates {
         let input: Double
         let cachedInput: Double
         let output: Double
     }
 
-    static func openAIRates(for model: String) -> OpenAIRates {
+    public static func openAIRates(for model: String) -> OpenAIRates {
         let m = model.lowercased()
         if m.contains("nano") { return OpenAIRates(input: 0.05, cachedInput: 0.005, output: 0.40) }
         if m.contains("gpt-5"), m.contains("mini") { return OpenAIRates(input: 0.25, cachedInput: 0.025, output: 2) }
@@ -55,7 +55,7 @@ enum Pricing {
         return OpenAIRates(input: 1.25, cachedInput: 0.125, output: 10)
     }
 
-    static func openAICost(model: String, uncachedInput: Int, cachedInput: Int, output: Int) -> Double {
+    public static func openAICost(model: String, uncachedInput: Int, cachedInput: Int, output: Int) -> Double {
         let r = openAIRates(for: model)
         return (Double(uncachedInput) * r.input
             + Double(cachedInput) * r.cachedInput

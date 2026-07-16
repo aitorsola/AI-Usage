@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AIUsageCore
 
 extension ProviderKind {
     var color: Color {

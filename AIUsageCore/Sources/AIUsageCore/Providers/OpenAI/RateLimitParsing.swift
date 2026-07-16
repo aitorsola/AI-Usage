@@ -10,7 +10,7 @@ import Foundation
 // Decodes the rate-limit payload OpenAI embeds both in Codex CLI session logs
 // and in the ChatGPT usage endpoint, so it is shared by the macOS parser and
 // the cross-platform network fetcher.
-enum RateLimitParsing {
+public enum RateLimitParsing {
     struct Parsed {
         var gauges: [PlanGauge] = []
         var planType: String?
@@ -19,7 +19,7 @@ enum RateLimitParsing {
         var limitReachedReason: String?
     }
 
-    static func parse(_ rl: [String: Any]) -> (gauges: [PlanGauge], planType: String?) {
+    public static func parse(_ rl: [String: Any]) -> (gauges: [PlanGauge], planType: String?) {
         let full = parseFull(rl)
         return (full.gauges, full.planType)
     }

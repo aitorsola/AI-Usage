@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum Formatters {
+public enum Formatters {
     private static let costFormatter: NumberFormatter = {
         let f = NumberFormatter()
         f.numberStyle = .decimal
@@ -17,11 +17,11 @@ enum Formatters {
         return f
     }()
 
-    static func cost(_ v: Double) -> String {
+    public static func cost(_ v: Double) -> String {
         "$" + (costFormatter.string(from: NSNumber(value: v)) ?? String(format: "%.2f", v))
     }
 
-    static func tokens(_ n: Int) -> String {
+    public static func tokens(_ n: Int) -> String {
         let d = Double(n)
         switch d {
         case 1_000_000_000...: return String.localizedStringWithFormat("%.1f B", d / 1_000_000_000)
@@ -31,28 +31,28 @@ enum Formatters {
         }
     }
 
-    static func time(_ d: Date) -> String {
+    public static func time(_ d: Date) -> String {
         d.formatted(date: .omitted, time: .shortened)
     }
 
-    static func remaining(until d: Date) -> String {
+    public static func remaining(until d: Date) -> String {
         let s = max(0, Int(d.timeIntervalSinceNow))
         let h = s / 3600
         let m = (s % 3600) / 60
         return h > 0 ? "\(h) h \(m) min" : "\(m) min"
     }
 
-    static func money(_ value: Double?) -> String? {
+    public static func money(_ value: Double?) -> String? {
         value.map { cost($0) }
     }
 
-    static func money(_ raw: String?) -> String? {
+    public static func money(_ raw: String?) -> String? {
         guard let raw, !raw.isEmpty else { return nil }
         if let d = Double(raw) { return cost(d) }
         return raw
     }
 
-    static func resetDescription(_ d: Date) -> String {
+    public static func resetDescription(_ d: Date) -> String {
         if d.timeIntervalSinceNow < 24 * 3600 {
             return String(format: L.t("resets_in"),
                           remaining(until: d), time(d))
@@ -62,7 +62,7 @@ enum Formatters {
     }
 
     // Short reset text for tight spaces (widget): countdown within a day, else the day.
-    static func resetCompact(_ d: Date) -> String {
+    public static func resetCompact(_ d: Date) -> String {
         d.timeIntervalSinceNow < 24 * 3600 ? remaining(until: d) : dayMedium(d)
     }
 
@@ -80,15 +80,15 @@ enum Formatters {
         return f
     }()
 
-    static func dayShort(_ d: Date) -> String {
+    public static func dayShort(_ d: Date) -> String {
         dayShortFormatter.string(from: d)
     }
 
-    static func dayMedium(_ d: Date) -> String {
+    public static func dayMedium(_ d: Date) -> String {
         dayMediumFormatter.string(from: d)
     }
 
-    static func modelName(_ id: String) -> String {
+    public static func modelName(_ id: String) -> String {
         guard id.lowercased().hasPrefix("claude") else { return id }
         var parts = id.lowercased().split(separator: "-").map(String.init)
         if parts.first == "claude" { parts.removeFirst() }

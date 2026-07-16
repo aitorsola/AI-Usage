@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AIUsageCore
 import AppKit
 
 struct LoginView: View {

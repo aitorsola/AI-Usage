@@ -8,10 +8,10 @@
 import Foundation
 import Security
 
-enum PlanFetcher {
+public enum PlanFetcher {
     static let userAgent = "claude-code/2.1.207 (external, ai-usage)"
 
-    static func fetch(completion: @escaping (PlanStatus) -> Void) {
+    public static func fetch(completion: @escaping (PlanStatus) -> Void) {
         resolveToken { token, subscription, problem, needsLogin in
             guard let token else {
                 completion(PlanStatus(gauges: [], subscription: subscription,

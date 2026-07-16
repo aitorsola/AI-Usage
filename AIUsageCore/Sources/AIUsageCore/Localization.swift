@@ -28,8 +28,8 @@ enum AppLanguage: String {
     }()
 }
 
-enum L {
-    static func t(_ key: String) -> String {
+public enum L {
+    public static func t(_ key: String) -> String {
         let lang = AppLanguage.current
         return Translations.tables[lang]?[key]
             ?? Translations.tables[.en]?[key]

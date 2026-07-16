@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import AIUsageCore
 
 // Fabricated, privacy-safe data used only for screenshots / showcasing the app.
 // Nothing here reflects any real account. Activate with:

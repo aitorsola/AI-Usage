@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AIUsageCore
 
 @main
 struct AIUsageiOSApp: App {

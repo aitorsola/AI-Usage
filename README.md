@@ -86,26 +86,27 @@ Everything runs locally. The only network requests are the usage/profile/balance
 ├── release.sh                      # Universal build → Developer ID sign → notarize → .dmg
 ├── scripts/
 │   └── make_icon.swift             # Generates the app icon (macOS and iOS variants)
-├── Core/                           # Cross-platform core, compiled into both apps
-│   ├── Models/
-│   │   ├── Models.swift                 # Core usage / plan data types
-│   │   └── AppSettings.swift            # Settings keys, menu-section configuration
-│   ├── Providers/
-│   │   ├── Anthropic/                   # Claude: OAuth PKCE + usage/profile endpoints
-│   │   │   ├── AnthropicAuth.swift
-│   │   │   └── PlanFetcher.swift
-│   │   ├── OpenAI/                      # OpenAI: OAuth PKCE + usage endpoint
-│   │   │   ├── OpenAIAuth.swift
-│   │   │   └── RateLimitParsing.swift   # Rate-limit payload decoding (logs + endpoint)
-│   │   └── DeepSeek/
-│   │       └── DeepSeekAuth.swift       # API key store + balance endpoint
-│   ├── Aggregator.swift                 # Rolls parsed entries into periods and totals
-│   ├── Pricing.swift                    # Per-model price tables
-│   └── Support/
-│       └── Formatters.swift             # Number, date and cost formatting
-├── Shared/                         # Compiled into the apps AND the widgets
-│   ├── WidgetShared.swift               # App-Group snapshot model
-│   └── Localization.swift               # Language detection + translation catalog
+├── AIUsageCore/                    # Swift package: cross-platform core, linked by all targets
+│   ├── Package.swift
+│   └── Sources/AIUsageCore/
+│       ├── Models/
+│       │   ├── Models.swift             # Core usage / plan data types
+│       │   └── AppSettings.swift        # Settings keys, menu-section configuration
+│       ├── Providers/
+│       │   ├── Anthropic/               # Claude: OAuth PKCE + usage/profile endpoints
+│       │   │   ├── AnthropicAuth.swift
+│       │   │   └── PlanFetcher.swift
+│       │   ├── OpenAI/                  # OpenAI: OAuth PKCE + usage endpoint
+│       │   │   ├── OpenAIAuth.swift
+│       │   │   └── RateLimitParsing.swift  # Rate-limit payload decoding (logs + endpoint)
+│       │   └── DeepSeek/
+│       │       └── DeepSeekAuth.swift   # API key store + balance endpoint
+│       ├── Aggregator.swift             # Rolls parsed entries into periods and totals
+│       ├── Pricing.swift                # Per-model price tables
+│       ├── Support/
+│       │   └── Formatters.swift         # Number, date and cost formatting
+│       ├── Localization.swift           # Language detection + translation catalog
+│       └── WidgetShared.swift           # App-Group snapshot model
 ├── macOS/                          # Menu bar app
 │   ├── App/
 │   │   ├── AIUsageApp.swift             # App entry point, scenes, widget deep link

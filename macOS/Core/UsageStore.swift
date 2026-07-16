@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import AIUsageCore
 import Combine
 import WidgetKit
 

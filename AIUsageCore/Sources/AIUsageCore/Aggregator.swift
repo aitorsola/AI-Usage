@@ -9,8 +9,8 @@ import Foundation
 
 // Shared aggregation over raw usage events, used by every provider parser
 // (Claude, Codex, OpenCode) to build a UsageSnapshot.
-enum Aggregator {
-    static func snapshot(from rawEvents: [UsageEvent], now: Date = Date()) -> UsageSnapshot {
+public enum Aggregator {
+    public static func snapshot(from rawEvents: [UsageEvent], now: Date = Date()) -> UsageSnapshot {
         var seen = Set<String>()
         var events: [UsageEvent] = []
         events.reserveCapacity(rawEvents.count)

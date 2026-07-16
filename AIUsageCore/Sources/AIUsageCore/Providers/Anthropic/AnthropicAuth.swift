@@ -13,17 +13,17 @@ import CryptoKit
 import Network
 import Security
 
-enum AnthropicOAuth {
+public enum AnthropicOAuth {
     static let clientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
     static let localRedirect = "http://localhost:54545/callback"
     static let manualRedirect = "https://console.anthropic.com/oauth/code/callback"
     static let tokenEndpoint = "https://console.anthropic.com/v1/oauth/token"
     static let scopes = "org:create_api_key user:profile user:inference"
 
-    struct OwnCredentials {
-        let accessToken: String
-        let refreshToken: String?
-        let expiresAt: Date?
+    public struct OwnCredentials {
+        public let accessToken: String
+        public let refreshToken: String?
+        public let expiresAt: Date?
     }
 
     static func makeVerifier() -> String {
@@ -118,10 +118,10 @@ enum AnthropicOAuth {
     }
 }
 
-enum AnthropicTokenStore {
+public enum AnthropicTokenStore {
     static let service = "AI Usage-credentials"
 
-    static func load() -> AnthropicOAuth.OwnCredentials? {
+    public static func load() -> AnthropicOAuth.OwnCredentials? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -142,7 +142,7 @@ enum AnthropicTokenStore {
                                              expiresAt: expires)
     }
 
-    static func save(_ creds: AnthropicOAuth.OwnCredentials) {
+    public static func save(_ creds: AnthropicOAuth.OwnCredentials) {
         var payload: [String: Any] = ["accessToken": creds.accessToken]
         if let r = creds.refreshToken { payload["refreshToken"] = r }
         if let e = creds.expiresAt { payload["expiresAt"] = e.timeIntervalSince1970 * 1000 }
@@ -157,7 +157,7 @@ enum AnthropicTokenStore {
         SecItemAdd(attrs as CFDictionary, nil)
     }
 
-    static func delete() {
+    public static func delete() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -166,17 +166,17 @@ enum AnthropicTokenStore {
     }
 }
 
-struct OAuthFlowConfig {
-    let kind: ProviderKind
-    let port: UInt16
-    let callbackPath: String
-    let localRedirect: String
-    let manualRedirect: String?
-    let makeAuthorizeURL: (_ verifier: String, _ redirect: String) -> URL
-    let exchange: (_ code: String, _ state: String?, _ redirect: String, _ verifier: String,
+public struct OAuthFlowConfig {
+    public let kind: ProviderKind
+    public let port: UInt16
+    public let callbackPath: String
+    public let localRedirect: String
+    public let manualRedirect: String?
+    public let makeAuthorizeURL: (_ verifier: String, _ redirect: String) -> URL
+    public let exchange: (_ code: String, _ state: String?, _ redirect: String, _ verifier: String,
                    _ completion: @escaping (Bool, String?) -> Void) -> Void
 
-    static let anthropic = OAuthFlowConfig(
+    public static let anthropic = OAuthFlowConfig(
         kind: .anthropic,
         port: 54545,
         callbackPath: "/callback",
@@ -192,7 +192,7 @@ struct OAuthFlowConfig {
             }
         })
 
-    static let openAI = OAuthFlowConfig(
+    public static let openAI = OAuthFlowConfig(
         kind: .openAI,
         port: 1455,
         callbackPath: "/auth/callback",
@@ -208,8 +208,8 @@ struct OAuthFlowConfig {
         })
 }
 
-final class LoginFlowController: ObservableObject {
-    enum Stage: Equatable {
+public final class LoginFlowController: ObservableObject {
+    public enum Stage: Equatable {
         case idle
         case waitingBrowser(manual: Bool)
         case exchanging
@@ -217,23 +217,23 @@ final class LoginFlowController: ObservableObject {
         case failure(String)
     }
 
-    @Published var stage: Stage = .idle
-    var onSuccess: (() -> Void)?
+    @Published public var stage: Stage = .idle
+    public var onSuccess: (() -> Void)?
     // iOS injects how to open the authorize URL (ASWebAuthenticationSession);
     // on macOS the browser is opened directly with NSWorkspace.
-    var iosOpen: ((URL) -> Void)?
-    let config: OAuthFlowConfig
+    public var iosOpen: ((URL) -> Void)?
+    public let config: OAuthFlowConfig
 
     private var verifier = ""
     private var redirect: String
     private var listener: NWListener?
 
-    init(config: OAuthFlowConfig) {
+    public init(config: OAuthFlowConfig) {
         self.config = config
         self.redirect = config.localRedirect
     }
 
-    func begin() {
+    public func begin() {
         cancelListener()
         verifier = AnthropicOAuth.makeVerifier()
         let localOK = startListener()
@@ -254,7 +254,7 @@ final class LoginFlowController: ObservableObject {
         #endif
     }
 
-    func copyAuthorizeURL() {
+    public func copyAuthorizeURL() {
         #if os(macOS)
         guard !verifier.isEmpty else { return }
         NSPasteboard.general.clearContents()
@@ -264,7 +264,7 @@ final class LoginFlowController: ObservableObject {
         #endif
     }
 
-    func submitManualCode(_ pasted: String) {
+    public func submitManualCode(_ pasted: String) {
         let trimmed = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !verifier.isEmpty else { return }
         let parts = trimmed.split(separator: "#", maxSplits: 1).map(String.init)
@@ -349,7 +349,7 @@ final class LoginFlowController: ObservableObject {
         }
     }
 
-    func cancelListener() {
+    public func cancelListener() {
         listener?.cancel()
         listener = nil
     }

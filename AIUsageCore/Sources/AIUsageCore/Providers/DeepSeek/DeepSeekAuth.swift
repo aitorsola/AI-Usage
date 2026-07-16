@@ -8,10 +8,10 @@
 import Foundation
 import Security
 
-enum DeepSeekKeyStore {
+public enum DeepSeekKeyStore {
     static let service = "AI Usage-deepseek-key"
 
-    static func load() -> String? {
+    public static func load() -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -26,7 +26,7 @@ enum DeepSeekKeyStore {
         return key
     }
 
-    static func save(_ key: String) {
+    public static func save(_ key: String) {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else { return }
         delete()
@@ -39,7 +39,7 @@ enum DeepSeekKeyStore {
         SecItemAdd(attrs as CFDictionary, nil)
     }
 
-    static func delete() {
+    public static func delete() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -48,8 +48,8 @@ enum DeepSeekKeyStore {
     }
 }
 
-enum DeepSeekFetcher {
-    static func fetch(completion: @escaping (PlanStatus) -> Void) {
+public enum DeepSeekFetcher {
+    public static func fetch(completion: @escaping (PlanStatus) -> Void) {
         guard let key = DeepSeekKeyStore.load() else {
             completion(PlanStatus(needsLogin: true))
             return

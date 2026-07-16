@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import AIUsageCore
 
 final class CodexParser {
     struct RateSnapshot {

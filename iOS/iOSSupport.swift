@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AIUsageCore
 
 extension Color {
     init(hex: String) {
