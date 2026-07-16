@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 @main
 struct AIUsageApp: App {
@@ -16,6 +17,7 @@ struct AIUsageApp: App {
             MenuContentView(store: store)
         } label: {
             MenuBarLabel(store: store)
+                .modifier(WidgetURLHandler())
         }
         .menuBarExtraStyle(.window)
 
@@ -23,6 +25,8 @@ struct AIUsageApp: App {
             DashboardView(store: store)
         }
         .defaultSize(width: 720, height: 680)
+        // Widget clicks arrive as aiusage://dashboard: route them to this window.
+        .handlesExternalEvents(matching: ["dashboard"])
 
         Window(String(format: L.t("connect_with"), "Claude"), id: "login") {
             LoginView(store: store, config: .anthropic)
@@ -36,6 +40,20 @@ struct AIUsageApp: App {
 
         Settings {
             SettingsView(store: store)
+        }
+    }
+}
+
+// Opens the dashboard when a widget is clicked (aiusage:// deep link). Attached
+// to the menu bar label because it is the only view that is always installed.
+private struct WidgetURLHandler: ViewModifier {
+    @Environment(\.openWindow) private var openWindow
+
+    func body(content: Content) -> some View {
+        content.onOpenURL { url in
+            guard url.scheme == "aiusage" else { return }
+            openWindow(id: "dashboard")
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 }

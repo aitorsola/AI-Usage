@@ -171,10 +171,14 @@ struct AIUsageWidgetView: View {
     private var snap: WidgetSnapshot { entry.snapshot }
 
     var body: some View {
-        switch family {
-        case .systemSmall: smallView
-        default: wideView
+        Group {
+            switch family {
+            case .systemSmall: smallView
+            default: wideView
+            }
         }
+        // Clicking anywhere on the widget opens the app's dashboard window.
+        .widgetURL(URL(string: "aiusage://dashboard"))
     }
 
     // Small: the primary provider's session + weekly usage.
