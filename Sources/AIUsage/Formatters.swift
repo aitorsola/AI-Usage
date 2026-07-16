@@ -47,10 +47,10 @@ enum Formatters {
 
     static func resetDescription(_ d: Date) -> String {
         if d.timeIntervalSinceNow < 24 * 3600 {
-            return String(format: L.t("Se reinicia en %@ (%@)", "Resets in %@ (%@)"),
+            return String(format: L.t("resets_in"),
                           remaining(until: d), time(d))
         }
-        return String(format: L.t("Se reinicia el %@ a las %@", "Resets on %@ at %@"),
+        return String(format: L.t("resets_on_at"),
                       dayMedium(d), time(d))
     }
 

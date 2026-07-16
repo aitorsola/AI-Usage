@@ -5,6 +5,8 @@ extension ProviderKind {
         switch self {
         case .anthropic: return Color(red: 0.851, green: 0.467, blue: 0.341)
         case .openAI: return Color(red: 0.063, green: 0.639, blue: 0.498)
+        case .openCode: return Color(red: 0.545, green: 0.486, blue: 0.965)
+        case .deepSeek: return Color(red: 0.302, green: 0.420, blue: 0.996)
         }
     }
 }
@@ -24,7 +26,7 @@ struct GaugeRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(Int(shown.rounded())) % \(showRemaining ? L.t("libre", "left") : L.t("usado", "used"))")
+                Text("\(Int(shown.rounded())) % \(showRemaining ? L.t("left") : L.t("used_2"))")
                     .font(.caption.monospacedDigit())
                     .fontWeight(.semibold)
             }
@@ -83,14 +85,14 @@ struct MoneyLimitRow: View {
 
     private func amountText(showRemaining: Bool) -> String {
         switch (usedText, limitText) {
-        case let (u?, l?): return "\(u) \(L.t("de", "of")) \(l)"
+        case let (u?, l?): return "\(u) \(L.t("of")) \(l)"
         case let (u?, nil): return u
-        case let (nil, l?): return "\(L.t("límite", "limit")) \(l)"
+        case let (nil, l?): return "\(L.t("limit_2")) \(l)"
         default:
             guard let p = usedPercent else { return "" }
             let clamped = min(max(p, 0), 100)
             let shown = showRemaining ? 100 - clamped : clamped
-            return "\(Int(shown.rounded())) % \(showRemaining ? L.t("libre", "left") : L.t("usado", "used"))"
+            return "\(Int(shown.rounded())) % \(showRemaining ? L.t("left") : L.t("used_2"))"
         }
     }
 
@@ -107,7 +109,7 @@ struct LimitBanner: View {
     let reason: String
 
     var body: some View {
-        Label(String(format: L.t("Límite alcanzado: %@", "Limit reached: %@"), reason), systemImage: "exclamationmark.octagon.fill")
+        Label(String(format: L.t("limit_reached"), reason), systemImage: "exclamationmark.octagon.fill")
             .font(.caption)
             .fontWeight(.medium)
             .foregroundStyle(.red)
@@ -122,7 +124,7 @@ struct PlanExtrasView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let extra = plan.extraUsage {
-                MoneyLimitRow(label: L.t("Uso extra (mes)", "Extra usage (month)"),
+                MoneyLimitRow(label: L.t("extra_usage_month"),
                               usedPercent: extra.utilization,
                               usedText: Formatters.money(extra.usedCredits),
                               limitText: Formatters.money(extra.monthlyLimit),
@@ -130,17 +132,17 @@ struct PlanExtrasView: View {
             }
             if let credits = plan.credits {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(L.t("Créditos", "Credits"))
+                    Text(L.t("credits"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Text(credits.unlimited ? L.t("Ilimitados", "Unlimited") : (Formatters.money(credits.balance) ?? "—"))
+                    Text(credits.unlimited ? L.t("unlimited") : (Formatters.money(credits.balance) ?? "—"))
                         .font(.caption.monospacedDigit())
                         .fontWeight(.semibold)
                 }
             }
             if let spend = plan.spendLimit {
-                MoneyLimitRow(label: L.t("Límite de gasto", "Spending limit"),
+                MoneyLimitRow(label: L.t("spending_limit"),
                               usedPercent: spend.usedPercent,
                               usedText: Formatters.money(spend.usedText),
                               limitText: Formatters.money(spend.limitText),
@@ -177,7 +179,7 @@ struct DayBars: View {
                         .foregroundStyle(isToday ? .secondary : .tertiary)
                 }
                 .frame(maxWidth: .infinity)
-                .help("\(Formatters.dayMedium(d.day)) — \(Formatters.cost(d.totals.cost)) · \(Formatters.tokens(d.totals.totalTokens)) tokens · \(d.totals.messages) \(L.t("mensajes", "messages"))")
+                .help("\(Formatters.dayMedium(d.day)) — \(Formatters.cost(d.totals.cost)) · \(Formatters.tokens(d.totals.totalTokens)) tokens · \(d.totals.messages) \(L.t("messages_2"))")
             }
         }
     }
@@ -238,6 +240,6 @@ struct DailyRow: View {
                 .foregroundStyle(.tertiary)
                 .frame(width: 56, alignment: .trailing)
         }
-        .help("\(day.totals.messages) \(L.t("mensajes", "messages")) · \(L.t("entrada", "input")) \(Formatters.tokens(day.totals.input)) · \(L.t("salida", "output")) \(Formatters.tokens(day.totals.output)) · \(L.t("caché", "cache")) \(Formatters.tokens(day.totals.cacheRead + day.totals.cacheWrite))")
+        .help("\(day.totals.messages) \(L.t("messages_2")) · \(L.t("input_2")) \(Formatters.tokens(day.totals.input)) · \(L.t("output_2")) \(Formatters.tokens(day.totals.output)) · \(L.t("cache_2")) \(Formatters.tokens(day.totals.cacheRead + day.totals.cacheWrite))")
     }
 }

@@ -8,7 +8,7 @@ enum PlanFetcher {
         resolveToken { token, subscription, problem, needsLogin in
             guard let token else {
                 completion(PlanStatus(gauges: [], subscription: subscription,
-                                      error: problem ?? L.t("sin sesión", "no session"),
+                                      error: problem ?? L.t("no_session"),
                                       needsLogin: needsLogin))
                 return
             }
@@ -20,7 +20,7 @@ enum PlanFetcher {
 
     private static func resolveToken(_ done: @escaping (_ token: String?, _ subscription: String?, _ problem: String?, _ needsLogin: Bool) -> Void) {
         guard let own = AnthropicTokenStore.load() else {
-            done(nil, nil, L.t("sin sesión — conéctate con tu cuenta de Claude", "no session — sign in with your Claude account"), true)
+            done(nil, nil, L.t("no_session_sign_in_with_your"), true)
             return
         }
         let stillValid = own.expiresAt.map { $0 > Date().addingTimeInterval(60) } ?? true
@@ -29,14 +29,14 @@ enum PlanFetcher {
             return
         }
         guard let rt = own.refreshToken else {
-            done(nil, nil, L.t("sesión caducada — vuelve a iniciar sesión", "session expired — sign in again"), true)
+            done(nil, nil, L.t("session_expired_sign_in_again"), true)
             return
         }
         AnthropicOAuth.refresh(refreshToken: rt) { creds, _ in
             if let creds {
                 done(creds.accessToken, nil, nil, false)
             } else {
-                done(nil, nil, L.t("sesión caducada — vuelve a iniciar sesión", "session expired — sign in again"), true)
+                done(nil, nil, L.t("session_expired_sign_in_again"), true)
             }
         }
     }
@@ -58,12 +58,12 @@ enum PlanFetcher {
                 return
             }
             guard let http = resp as? HTTPURLResponse else {
-                status.error = L.t("respuesta no válida", "invalid response")
+                status.error = L.t("invalid_response")
                 return
             }
             guard http.statusCode == 200 else {
                 if http.statusCode == 401 {
-                    status.error = L.t("sesión no autorizada — vuelve a iniciar sesión", "unauthorized — sign in again")
+                    status.error = L.t("unauthorized_sign_in_again")
                     status.needsLogin = true
                 } else {
                     status.error = "HTTP \(http.statusCode)"
@@ -72,7 +72,7 @@ enum PlanFetcher {
             }
             guard let data,
                   let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-                status.error = L.t("JSON inesperado", "unexpected JSON")
+                status.error = L.t("unexpected_json")
                 return
             }
             status.gauges = gauges(from: obj)
@@ -87,7 +87,7 @@ enum PlanFetcher {
                 }
             }
             if status.gauges.isEmpty && !status.hasExtras {
-                status.error = L.t("sin datos de límites", "no limit data")
+                status.error = L.t("no_limit_data")
             }
         }.resume()
     }
@@ -131,11 +131,11 @@ enum PlanFetcher {
     }
 
     private static let knownLabels: [(String, String)] = [
-        ("five_hour", L.t("Sesión (5 h)", "Session (5 h)")),
-        ("seven_day", L.t("Semana", "Week")),
-        ("seven_day_opus", L.t("Opus · semana", "Opus · week")),
-        ("seven_day_sonnet", L.t("Sonnet · semana", "Sonnet · week")),
-        ("seven_day_oauth_apps", L.t("Apps · semana", "Apps · week")),
+        ("five_hour", L.t("session_5_h")),
+        ("seven_day", L.t("week")),
+        ("seven_day_opus", L.t("opus_week")),
+        ("seven_day_sonnet", L.t("sonnet_week")),
+        ("seven_day_oauth_apps", L.t("apps_week")),
     ]
 
     private static func gauges(from obj: [String: Any]) -> [PlanGauge] {

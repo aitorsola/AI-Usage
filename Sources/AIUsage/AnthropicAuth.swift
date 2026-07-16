@@ -230,7 +230,7 @@ final class LoginFlowController: ObservableObject {
         } else if let manual = config.manualRedirect {
             redirect = manual
         } else {
-            stage = .failure(String(format: L.t("el puerto %@ está ocupado — ciérralo (p. ej. un «codex login» a medias) y reintenta", "port %@ is busy — close whatever is using it (e.g. a pending codex login) and retry"), "\(config.port)"))
+            stage = .failure(String(format: L.t("port_is_busy_close_whatever_is"), "\(config.port)"))
             return
         }
         stage = .waitingBrowser(manual: !localOK)
@@ -319,8 +319,8 @@ final class LoginFlowController: ObservableObject {
 
         let ok = code != nil
         let html = ok
-            ? "<html><body style='font-family:-apple-system;text-align:center;padding-top:80px'><h2>✓ \(L.t("Autorizado", "Authorized"))</h2><p>\(L.t("Ya puedes cerrar esta pestaña y volver a AI Usage.", "You can close this tab and return to AI Usage."))</p></body></html>"
-            : "<html><body style='font-family:-apple-system;text-align:center;padding-top:80px'><p>\(L.t("Esperando autorización…", "Waiting for authorization…"))</p></body></html>"
+            ? "<html><body style='font-family:-apple-system;text-align:center;padding-top:80px'><h2>✓ \(L.t("authorized"))</h2><p>\(L.t("you_can_close_this_tab_and"))</p></body></html>"
+            : "<html><body style='font-family:-apple-system;text-align:center;padding-top:80px'><p>\(L.t("waiting_for_authorization"))</p></body></html>"
         let response = "HTTP/1.1 \(ok ? "200 OK" : "404 Not Found")\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(html.utf8.count)\r\nConnection: close\r\n\r\n\(html)"
         conn.send(content: Data(response.utf8), completion: .contentProcessed { _ in
             conn.cancel()

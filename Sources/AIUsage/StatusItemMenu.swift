@@ -51,21 +51,21 @@ final class StatusItemRightClickHandler: NSObject {
     private func showMenu(under window: NSWindow) {
         let menu = NSMenu()
 
-        let open = NSMenuItem(title: L.t("Abrir AI Usage", "Open AI Usage"), action: #selector(openPanel), keyEquivalent: "")
+        let open = NSMenuItem(title: L.t("open_ai_usage"), action: #selector(openPanel), keyEquivalent: "")
         open.target = self
         menu.addItem(open)
 
-        let refresh = NSMenuItem(title: L.t("Actualizar ahora", "Refresh now"), action: #selector(refreshNow), keyEquivalent: "")
+        let refresh = NSMenuItem(title: L.t("refresh_now"), action: #selector(refreshNow), keyEquivalent: "")
         refresh.target = self
         menu.addItem(refresh)
 
-        let settings = NSMenuItem(title: L.t("Ajustes…", "Settings…"), action: #selector(openSettings), keyEquivalent: "")
+        let settings = NSMenuItem(title: L.t("settings_2"), action: #selector(openSettings), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
 
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: L.t("Salir completamente", "Quit completely"), action: #selector(quitApp), keyEquivalent: "")
+        let quit = NSMenuItem(title: L.t("quit"), action: #selector(quitApp), keyEquivalent: "")
         quit.target = self
         menu.addItem(quit)
 

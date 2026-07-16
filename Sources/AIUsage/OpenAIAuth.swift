@@ -242,7 +242,7 @@ enum OpenAIUsageFetcher {
 
     private static func resolveCredentials(_ done: @escaping (OpenAIOAuth.Credentials?, String?, Bool) -> Void) {
         guard let stored = OpenAITokenStore.load() ?? CodexAuthFile.load() else {
-            done(nil, L.t("sin sesión — conéctate con tu cuenta de OpenAI", "no session — sign in with your OpenAI account"), true)
+            done(nil, L.t("no_session_sign_in_with_your_2"), true)
             return
         }
         let valid = stored.expiresAt.map { $0 > Date().addingTimeInterval(60) } ?? true
@@ -251,7 +251,7 @@ enum OpenAIUsageFetcher {
             return
         }
         guard let rt = stored.refreshToken else {
-            done(nil, L.t("sesión caducada — vuelve a iniciar sesión", "session expired — sign in again"), true)
+            done(nil, L.t("session_expired_sign_in_again"), true)
             return
         }
         OpenAIOAuth.refresh(refreshToken: rt, accountID: stored.accountID,
@@ -259,7 +259,7 @@ enum OpenAIUsageFetcher {
             if let creds {
                 done(creds, nil, false)
             } else {
-                done(nil, L.t("sesión caducada — vuelve a iniciar sesión", "session expired — sign in again"), true)
+                done(nil, L.t("session_expired_sign_in_again"), true)
             }
         }
     }
@@ -282,12 +282,12 @@ enum OpenAIUsageFetcher {
                 return
             }
             guard let http = resp as? HTTPURLResponse else {
-                status.error = L.t("respuesta no válida", "invalid response")
+                status.error = L.t("invalid_response")
                 return
             }
             guard http.statusCode == 200 else {
                 if http.statusCode == 401 || http.statusCode == 403 {
-                    status.error = L.t("sesión no autorizada — vuelve a iniciar sesión", "unauthorized — sign in again")
+                    status.error = L.t("unauthorized_sign_in_again")
                     status.needsLogin = true
                 } else {
                     status.error = "HTTP \(http.statusCode)"
@@ -296,7 +296,7 @@ enum OpenAIUsageFetcher {
             }
             guard let data,
                   let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-                status.error = L.t("JSON inesperado", "unexpected JSON")
+                status.error = L.t("unexpected_json")
                 return
             }
             if let rl = RateLimitParsing.findRateLimits(in: obj) {
@@ -311,7 +311,7 @@ enum OpenAIUsageFetcher {
             }
             status.accountEmail = creds.email
             if status.gauges.isEmpty && !status.hasExtras {
-                status.error = L.t("sin datos de límites", "no limit data")
+                status.error = L.t("no_limit_data")
             }
         }.resume()
     }

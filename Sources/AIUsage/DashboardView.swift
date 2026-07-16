@@ -4,6 +4,7 @@ import AppKit
 struct DashboardView: View {
     @ObservedObject var store: UsageStore
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
     @State private var selectedProvider = ProviderKind.anthropic
 
     var body: some View {
@@ -22,7 +23,12 @@ struct DashboardView: View {
     }
 
     private var current: ProviderData {
-        selectedProvider == .anthropic ? store.anthropic : store.openAI
+        switch selectedProvider {
+        case .anthropic: return store.anthropic
+        case .openAI: return store.openAI
+        case .openCode: return store.openCode
+        case .deepSeek: return store.deepSeek
+        }
     }
 
     private var header: some View {
@@ -34,7 +40,7 @@ struct DashboardView: View {
                 .font(.title2)
                 .fontWeight(.semibold)
             Spacer()
-            Text(String(format: L.t("Actualizado a las %@", "Updated at %@"), Formatters.time(store.lastUpdated)))
+            Text(String(format: L.t("updated_at"), Formatters.time(store.lastUpdated)))
                 .font(.caption)
                 .foregroundStyle(.tertiary)
             if store.isRefreshing {
@@ -46,7 +52,7 @@ struct DashboardView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help(L.t("Actualizar ahora", "Refresh now"))
+                .help(L.t("refresh_now"))
             }
         }
     }
@@ -60,7 +66,7 @@ struct DashboardView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 240)
+            .frame(maxWidth: 460)
             if let sub = current.plan.subscription {
                 Text("Plan \(sub.capitalized)")
                     .font(.caption)
@@ -77,9 +83,17 @@ struct DashboardView: View {
 
     @ViewBuilder
     private func providerPage(_ provider: ProviderData) -> some View {
-        if provider.kind == .openAI && !provider.available && !provider.plan.needsLogin {
+        if provider.kind == .deepSeek {
+            deepSeekPage(provider)
+        } else if provider.kind == .openAI && !provider.available && !provider.plan.needsLogin {
             section("OpenAI") {
-                Text(provider.plan.error ?? L.t("No se han encontrado sesiones de Codex CLI en ~/.codex.", "No Codex CLI sessions found in ~/.codex."))
+                Text(provider.plan.error ?? L.t("no_codex_cli_sessions_found_in"))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        } else if provider.kind == .openCode && !provider.available {
+            section("OpenCode") {
+                Text(L.t("no_opencode_data"))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -91,12 +105,47 @@ struct DashboardView: View {
         }
     }
 
+    @ViewBuilder
+    private func deepSeekPage(_ provider: ProviderData) -> some View {
+        if provider.plan.needsLogin {
+            section(L.t("balance")) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(provider.plan.error ?? L.t("add_deepseek_key_in_settings"))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Button(L.t("open_settings")) {
+                        ActivationPolicy.windowAppeared()
+                        openSettings()
+                    }
+                    .tint(provider.kind.color)
+                }
+            }
+        } else {
+            section(L.t("balance")) {
+                VStack(alignment: .leading, spacing: 14) {
+                    if let reason = provider.plan.limitReachedReason {
+                        LimitBanner(reason: reason)
+                    }
+                    if provider.plan.hasExtras {
+                        PlanExtrasView(plan: provider.plan, tint: provider.kind.color)
+                            .frame(maxWidth: 360)
+                    }
+                    if let error = provider.plan.error {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
     private func loginButton(_ provider: ProviderData) -> some View {
         Button {
             openWindow(id: provider.kind == .anthropic ? "login" : "login-openai")
             NSApp.activate(ignoringOtherApps: true)
         } label: {
-            Label(String(format: L.t("Iniciar sesión con %@", "Sign in with %@"), provider.kind.name),
+            Label(String(format: L.t("sign_in_with"), provider.kind.name),
                   systemImage: "person.crop.circle.badge.plus")
         }
         .tint(provider.kind.color)
@@ -105,22 +154,22 @@ struct DashboardView: View {
     private func statTiles(_ provider: ProviderData) -> some View {
         let snap = provider.snapshot
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
-            StatTile(title: L.t("Hoy", "Today"),
+            StatTile(title: L.t("today"),
                      value: Formatters.cost(snap.today.cost),
-                     detail: "\(snap.today.messages) \(L.t("mensajes", "messages")) · \(Formatters.tokens(snap.today.totalTokens)) tokens")
+                     detail: "\(snap.today.messages) \(L.t("messages_2")) · \(Formatters.tokens(snap.today.totalTokens)) tokens")
             if let block = snap.currentBlock {
-                StatTile(title: L.t("Bloque actual (5 h)", "Current block (5 h)"),
+                StatTile(title: L.t("current_block_5_h"),
                          value: Formatters.cost(block.totals.cost),
-                         detail: String(format: L.t("termina a las %@", "ends at %@"), Formatters.time(block.end)))
+                         detail: String(format: L.t("ends_at"), Formatters.time(block.end)))
             } else {
-                StatTile(title: L.t("Bloque actual (5 h)", "Current block (5 h)"),
+                StatTile(title: L.t("current_block_5_h"),
                          value: "—",
-                         detail: L.t("sin actividad reciente", "no recent activity"))
+                         detail: L.t("no_recent_activity"))
             }
-            StatTile(title: L.t("Últimos 7 días", "Last 7 days"),
+            StatTile(title: L.t("last_7_days"),
                      value: Formatters.cost(snap.last7.cost),
                      detail: "\(Formatters.tokens(snap.last7.totalTokens)) tokens")
-            StatTile(title: L.t("Últimos 30 días", "Last 30 days"),
+            StatTile(title: L.t("last_30_days"),
                      value: Formatters.cost(snap.last30.cost),
                      detail: "\(Formatters.tokens(snap.last30.totalTokens)) tokens")
         }
@@ -129,7 +178,7 @@ struct DashboardView: View {
     @ViewBuilder
     private func planSection(_ provider: ProviderData) -> some View {
         if provider.plan.needsLogin {
-            section(L.t("Límites del plan", "Plan limits")) {
+            section(L.t("plan_limits")) {
                 VStack(alignment: .leading, spacing: 8) {
                     if let error = provider.plan.error {
                         Text(error)
@@ -140,7 +189,7 @@ struct DashboardView: View {
                 }
             }
         } else if !provider.plan.gauges.isEmpty || provider.plan.hasExtras {
-            section(L.t("Límites del plan", "Plan limits")) {
+            section(L.t("plan_limits")) {
                 VStack(alignment: .leading, spacing: 14) {
                     if let reason = provider.plan.limitReachedReason {
                         LimitBanner(reason: reason)
@@ -160,7 +209,7 @@ struct DashboardView: View {
                 }
             }
         } else if let error = provider.plan.error {
-            section(L.t("Límites del plan", "Plan limits")) {
+            section(L.t("plan_limits")) {
                 Text(error)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -171,7 +220,7 @@ struct DashboardView: View {
     private func dailySection(_ provider: ProviderData) -> some View {
         let days = Array(provider.snapshot.days.suffix(14)).reversed()
         let maxCost = provider.snapshot.days.suffix(14).map(\.totals.cost).max() ?? 0
-        return section(L.t("Últimos 14 días", "Last 14 days")) {
+        return section(L.t("last_14_days")) {
             VStack(spacing: 6) {
                 ForEach(Array(days)) { day in
                     DailyRow(day: day, maxCost: maxCost, tint: provider.kind.color)
@@ -183,7 +232,7 @@ struct DashboardView: View {
     @ViewBuilder
     private func modelSection(_ provider: ProviderData) -> some View {
         if !provider.snapshot.models.isEmpty {
-            section(L.t("Por modelo (últimos 30 días)", "By model (last 30 days)")) {
+            section(L.t("by_model_last_30_days")) {
                 VStack(spacing: 4) {
                     modelHeaderRow
                     ForEach(provider.snapshot.models) { model in
@@ -196,13 +245,13 @@ struct DashboardView: View {
 
     private var modelHeaderRow: some View {
         HStack {
-            Text(L.t("Modelo", "Model")).frame(width: 130, alignment: .leading)
+            Text(L.t("model")).frame(width: 130, alignment: .leading)
             Spacer()
-            Text(L.t("Mensajes", "Messages")).frame(width: 70, alignment: .trailing)
-            Text(L.t("Entrada", "Input")).frame(width: 70, alignment: .trailing)
-            Text(L.t("Salida", "Output")).frame(width: 70, alignment: .trailing)
-            Text(L.t("Caché", "Cache")).frame(width: 70, alignment: .trailing)
-            Text(L.t("Coste", "Cost")).frame(width: 70, alignment: .trailing)
+            Text(L.t("messages")).frame(width: 70, alignment: .trailing)
+            Text(L.t("input")).frame(width: 70, alignment: .trailing)
+            Text(L.t("output")).frame(width: 70, alignment: .trailing)
+            Text(L.t("cache")).frame(width: 70, alignment: .trailing)
+            Text(L.t("cost")).frame(width: 70, alignment: .trailing)
         }
         .font(.caption2)
         .foregroundStyle(.tertiary)

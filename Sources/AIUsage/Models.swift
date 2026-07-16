@@ -111,11 +111,15 @@ struct PlanStatus {
 enum ProviderKind: String, CaseIterable {
     case anthropic
     case openAI
+    case openCode
+    case deepSeek
 
     var name: String {
         switch self {
         case .anthropic: return "Claude"
         case .openAI: return "OpenAI"
+        case .openCode: return "OpenCode"
+        case .deepSeek: return "DeepSeek"
         }
     }
 
@@ -123,6 +127,16 @@ enum ProviderKind: String, CaseIterable {
         switch self {
         case .anthropic: return "Claude Code"
         case .openAI: return "Codex CLI"
+        case .openCode: return "opencode.db"
+        case .deepSeek: return "API"
+        }
+    }
+
+    // Providers whose token/cost breakdown comes from a local usage log.
+    var hasLocalUsage: Bool {
+        switch self {
+        case .anthropic, .openAI, .openCode: return true
+        case .deepSeek: return false
         }
     }
 }

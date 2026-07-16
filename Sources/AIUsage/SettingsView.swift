@@ -11,13 +11,17 @@ enum SettingsKeys {
 enum MenuSectionID: String, CaseIterable {
     case claude
     case openai
+    case openCode
+    case deepSeek
     case week
 
     var title: String {
         switch self {
         case .claude: return "Claude"
         case .openai: return "OpenAI"
-        case .week: return L.t("Últimos 7 días", "Last 7 days")
+        case .openCode: return "OpenCode"
+        case .deepSeek: return "DeepSeek"
+        case .week: return L.t("last_7_days")
         }
     }
 }
@@ -28,7 +32,7 @@ struct MenuSectionSetting: Identifiable {
 }
 
 enum MenuSectionsConfig {
-    static let storageDefault = "claude:1,openai:1,week:1"
+    static let storageDefault = "claude:1,openai:1,openCode:1,deepSeek:1,week:1"
 
     static func parse(_ raw: String) -> [MenuSectionSetting] {
         var items: [MenuSectionSetting] = []
@@ -58,8 +62,8 @@ enum LimitDisplay: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .remaining: return L.t("Restante", "Remaining")
-        case .used: return L.t("Consumido", "Used")
+        case .remaining: return L.t("remaining")
+        case .used: return L.t("used")
         }
     }
 }
@@ -68,14 +72,18 @@ enum MenuSource: String, CaseIterable, Identifiable {
     case auto
     case anthropic
     case openAI
+    case openCode
+    case deepSeek
     case cost
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .auto: return L.t("Automático (Claude primero)", "Automatic (Claude first)")
+        case .auto: return L.t("automatic_claude_first")
         case .anthropic: return "Claude"
         case .openAI: return "OpenAI"
-        case .cost: return L.t("Coste de hoy (total)", "Today's cost (total)")
+        case .openCode: return "OpenCode"
+        case .deepSeek: return "DeepSeek"
+        case .cost: return L.t("todays_cost_total")
         }
     }
 }
@@ -86,17 +94,23 @@ struct SettingsView: View {
     @AppStorage(SettingsKeys.limitDisplay) private var limitDisplay = LimitDisplay.remaining.rawValue
     @AppStorage(SettingsKeys.menuSource) private var menuSource = MenuSource.auto.rawValue
     @AppStorage(SettingsKeys.menuSections) private var menuSectionsRaw = MenuSectionsConfig.storageDefault
+    @State private var deepSeekKeyInput = ""
+
+    // Cap the window so it never extends behind the Dock; the Form scrolls beyond this.
+    static var maxContentHeight: CGFloat {
+        max(360, (NSScreen.main?.visibleFrame.height ?? 800) - 60)
+    }
 
     var body: some View {
         Form {
-            Section(L.t("Visualización", "Display")) {
-                Picker(L.t("Mostrar límites como", "Show limits as"), selection: $limitDisplay) {
+            Section(L.t("display")) {
+                Picker(L.t("show_limits_as"), selection: $limitDisplay) {
                     ForEach(LimitDisplay.allCases) { mode in
                         Text(mode.label).tag(mode.rawValue)
                     }
                 }
                 .pickerStyle(.segmented)
-                Picker(L.t("La barra de menús muestra", "Menu bar shows"), selection: $menuSource) {
+                Picker(L.t("menu_bar_shows"), selection: $menuSource) {
                     ForEach(MenuSource.allCases) { source in
                         Text(source.label).tag(source.rawValue)
                     }
@@ -104,7 +118,7 @@ struct SettingsView: View {
                 LaunchAtLoginToggle()
             }
 
-            Section(L.t("Secciones del menú", "Menu sections")) {
+            Section(L.t("menu_sections")) {
                 let sections = MenuSectionsConfig.parse(menuSectionsRaw)
                 ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
                     HStack {
@@ -128,62 +142,99 @@ struct SettingsView: View {
                         .disabled(index == sections.count - 1)
                     }
                 }
-                Button(L.t("Restaurar orden por defecto", "Restore default order")) {
+                Button(L.t("restore_default_order")) {
                     menuSectionsRaw = MenuSectionsConfig.storageDefault
                 }
                 .controlSize(.small)
             }
 
             Section("Claude (Anthropic)") {
-                LabeledContent(L.t("Sesión", "Session"), value: anthropicSessionDescription)
+                LabeledContent(L.t("session"), value: anthropicSessionDescription)
                 if let account = accountDescription(store.anthropic.plan) {
-                    LabeledContent(L.t("Cuenta", "Account"), value: account)
+                    LabeledContent(L.t("account"), value: account)
                 }
                 HStack {
-                    Button(L.t("Iniciar sesión con Claude…", "Sign in with Claude…")) {
-                        openWindow(id: "login")
-                        NSApp.activate(ignoringOtherApps: true)
-                    }
-                    .tint(ProviderKind.anthropic.color)
-                    if AnthropicTokenStore.load() != nil {
-                        Button(L.t("Cerrar sesión propia", "Sign out"), role: .destructive) {
+                    if AnthropicTokenStore.load() == nil {
+                        Button(L.t("sign_in_with_claude")) {
+                            openWindow(id: "login")
+                            NSApp.activate(ignoringOtherApps: true)
+                        }
+                        .tint(ProviderKind.anthropic.color)
+                    } else {
+                        Button(L.t("sign_out"), role: .destructive) {
                             AnthropicTokenStore.delete()
                             store.refresh()
                         }
                     }
                 }
-                Text(L.t("La sesión se guarda en un ítem propio del llavero. La app no lee las credenciales de Claude Code, así que macOS no pide permisos de acceso.", "The session is stored in the app's own keychain item. The app never reads Claude Code's credentials, so macOS won't ask for keychain access."))
+                Text(L.t("the_session_is_stored_in_the"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             Section("OpenAI (Codex CLI)") {
-                LabeledContent(L.t("Sesión", "Session"), value: openAISessionDescription)
+                LabeledContent(L.t("session"), value: openAISessionDescription)
                 if let account = accountDescription(store.openAI.plan) {
-                    LabeledContent(L.t("Cuenta", "Account"), value: account)
+                    LabeledContent(L.t("account"), value: account)
                 }
-                LabeledContent(L.t("Datos locales", "Local data"), value: openAIDescription)
+                LabeledContent(L.t("local_data"), value: openAIDescription)
                 HStack {
-                    Button(L.t("Iniciar sesión con OpenAI…", "Sign in with OpenAI…")) {
-                        openWindow(id: "login-openai")
-                        NSApp.activate(ignoringOtherApps: true)
-                    }
-                    .tint(ProviderKind.openAI.color)
-                    if OpenAITokenStore.load() != nil {
-                        Button(L.t("Cerrar sesión propia", "Sign out"), role: .destructive) {
+                    if OpenAITokenStore.load() == nil {
+                        Button(L.t("sign_in_with_openai")) {
+                            openWindow(id: "login-openai")
+                            NSApp.activate(ignoringOtherApps: true)
+                        }
+                        .tint(ProviderKind.openAI.color)
+                    } else {
+                        Button(L.t("sign_out"), role: .destructive) {
                             OpenAITokenStore.delete()
                             store.refresh()
                         }
                     }
                 }
-                Text(L.t("Los tokens salen de las sesiones locales de Codex CLI (~/.codex/sessions). Los límites del plan se consultan en vivo a chatgpt.com con tu sesión de OpenAI.", "Token counts come from local Codex CLI sessions (~/.codex/sessions). Plan limits are fetched live from chatgpt.com using your OpenAI session."))
+                Text(L.t("token_counts_come_from_local_codex"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("OpenCode") {
+                LabeledContent(L.t("local_data"), value: openCodeDescription)
+                Text(L.t("opencode_caption"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("DeepSeek") {
+                let keyPresent = DeepSeekKeyStore.load() != nil
+                let keyInvalid = keyPresent && store.hasLoaded && store.deepSeek.plan.needsLogin
+                LabeledContent(L.t("session"), value: deepSeekSessionDescription)
+                    .foregroundStyle(keyInvalid ? Color.secondary : Color.primary)
+                if let balance = deepSeekBalance {
+                    LabeledContent(L.t("balance"), value: balance)
+                }
+                if !keyPresent || keyInvalid {
+                    SecureField(L.t("paste_api_key"), text: $deepSeekKeyInput)
+                    Button(L.t("save")) {
+                        DeepSeekKeyStore.save(deepSeekKeyInput)
+                        deepSeekKeyInput = ""
+                        store.refresh()
+                    }
+                    .tint(ProviderKind.deepSeek.color)
+                    .disabled(deepSeekKeyInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                if keyPresent {
+                    Button(L.t("sign_out"), role: .destructive) {
+                        DeepSeekKeyStore.delete()
+                        store.refresh()
+                    }
+                }
+                Text(L.t("deepseek_caption"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
-        .frame(width: 480)
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(width: 480, height: Self.maxContentHeight)
         .onAppear { ActivationPolicy.windowAppeared() }
         .onDisappear { ActivationPolicy.windowClosed() }
     }
@@ -212,38 +263,42 @@ struct SettingsView: View {
     }
 
     private var anthropicSessionDescription: String {
-        if let own = AnthropicTokenStore.load() {
-            if let exp = own.expiresAt {
-                return exp > Date()
-                    ? String(format: L.t("propia de la app (caduca %@)", "app's own (expires %@)"), Formatters.time(exp))
-                    : L.t("propia de la app (renovación automática)", "app's own (auto-refresh)")
-            }
-            return L.t("propia de la app", "app's own")
-        }
-        return L.t("sin sesión", "no session")
+        AnthropicTokenStore.load() != nil
+            ? L.t("active")
+            : L.t("not_signed_in")
     }
 
     private var openAISessionDescription: String {
-        if let own = OpenAITokenStore.load() {
-            if let exp = own.expiresAt, exp > Date() {
-                return String(format: L.t("propia de la app (caduca %@)", "app's own (expires %@)"), Formatters.time(exp))
-            }
-            return L.t("propia de la app (renovación automática)", "app's own (auto-refresh)")
-        }
-        if CodexAuthFile.load() != nil {
-            return L.t("auth.json de Codex CLI", "Codex CLI auth.json")
-        }
-        return L.t("sin sesión", "no session")
+        (OpenAITokenStore.load() != nil || CodexAuthFile.load() != nil)
+            ? L.t("active")
+            : L.t("not_signed_in")
     }
 
     private var openAIDescription: String {
         if !store.openAI.available && store.openAI.plan.error?.contains("no encontrado") == true {
-            return L.t("Codex CLI no encontrado", "Codex CLI not found")
+            return L.t("codex_cli_not_found")
         }
         let msgs = store.openAI.snapshot.last30.messages
-        var parts = [L.t("Codex CLI detectado", "Codex CLI detected")]
-        if msgs > 0 { parts.append(String(format: L.t("%d turnos en 30 días", "%d turns in 30 days"), msgs)) }
+        var parts = [L.t("codex_cli_detected")]
+        if msgs > 0 { parts.append(String(format: L.t("turns_in_30_days"), msgs)) }
         if let plan = store.openAI.plan.subscription { parts.append("plan \(plan)") }
         return parts.joined(separator: " · ")
+    }
+
+    private var openCodeDescription: String {
+        guard store.openCode.available else { return L.t("no_opencode_data") }
+        let snap = store.openCode.snapshot
+        return "\(Formatters.tokens(snap.last30.totalTokens)) tokens · \(Formatters.cost(snap.last30.cost))"
+    }
+
+    private var deepSeekBalance: String? {
+        guard let balance = store.deepSeek.plan.credits?.balance else { return nil }
+        return Formatters.money(balance)
+    }
+
+    private var deepSeekSessionDescription: String {
+        guard DeepSeekKeyStore.load() != nil else { return L.t("not_signed_in") }
+        if store.hasLoaded && store.deepSeek.plan.needsLogin { return L.t("invalid_api_key") }
+        return L.t("active")
     }
 }

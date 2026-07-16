@@ -4,12 +4,15 @@ import Combine
 final class UsageStore: ObservableObject {
     @Published var anthropic = ProviderData(kind: .anthropic)
     @Published var openAI = ProviderData(kind: .openAI)
+    @Published var openCode = ProviderData(kind: .openCode)
+    @Published var deepSeek = ProviderData(kind: .deepSeek)
     @Published var isRefreshing = false
     @Published var hasLoaded = false
     @Published var lastUpdated = Date()
 
     private let claudeParser = UsageParser()
     private let codexParser = CodexParser()
+    private let openCodeParser = OpenCodeParser()
     private let queue = DispatchQueue(label: "aiusage.refresh", qos: .utility)
     private var timer: Timer?
     private var refreshing = false
@@ -20,8 +23,6 @@ final class UsageStore: ObservableObject {
             self?.refresh()
         }
     }
-
-    var providers: [ProviderData] { [anthropic, openAI] }
 
     func refresh() {
         DispatchQueue.main.async {
@@ -37,18 +38,24 @@ final class UsageStore: ObservableObject {
                 let codex = self.codexParser.collect(since: cutoff)
                 let codexSnap = Aggregator.snapshot(from: codex.events)
 
+                let opencode = self.openCodeParser.collect(since: cutoff)
+                let opencodeSnap = Aggregator.snapshot(from: opencode.events)
+
                 let group = DispatchGroup()
                 var claudePlan = PlanStatus()
                 var openAILive = PlanStatus()
+                var deepSeekPlan = PlanStatus()
                 group.enter()
                 PlanFetcher.fetch { claudePlan = $0; group.leave() }
                 group.enter()
                 OpenAIUsageFetcher.fetch { openAILive = $0; group.leave() }
+                group.enter()
+                DeepSeekFetcher.fetch { deepSeekPlan = $0; group.leave() }
 
                 group.notify(queue: .main) {
                     var openAIPlan = openAILive
                     if openAIPlan.gauges.isEmpty && openAIPlan.error == nil {
-                        openAIPlan.error = L.t("sin datos de límites", "no limit data")
+                        openAIPlan.error = L.t("no_limit_data")
                     }
                     let openAIAvailable = codex.installed
                         || !openAIPlan.gauges.isEmpty
@@ -58,6 +65,12 @@ final class UsageStore: ObservableObject {
                                                   plan: claudePlan, available: true)
                     self.openAI = ProviderData(kind: .openAI, snapshot: codexSnap,
                                                plan: openAIPlan, available: openAIAvailable)
+                    self.openCode = ProviderData(kind: .openCode, snapshot: opencodeSnap,
+                                                 plan: PlanStatus(),
+                                                 available: opencode.installed && opencodeSnap.last30.messages > 0)
+                    self.deepSeek = ProviderData(kind: .deepSeek, snapshot: UsageSnapshot(),
+                                                 plan: deepSeekPlan,
+                                                 available: !deepSeekPlan.needsLogin)
                     self.lastUpdated = Date()
                     self.hasLoaded = true
                     self.isRefreshing = false

@@ -205,7 +205,7 @@ enum RateLimitParsing {
             reasons.append(humanReason(raw))
         }
         if (rl["spend_control_reached"] as? NSNumber)?.boolValue == true {
-            reasons.append(L.t("tope de gasto alcanzado", "spending cap reached"))
+            reasons.append(L.t("spending_cap_reached"))
         }
         out.limitReachedReason = reasons.first
         return out
@@ -220,19 +220,19 @@ enum RateLimitParsing {
     private static func humanReason(_ raw: String) -> String {
         let k = raw.lowercased()
         if k.contains("owner"), k.contains("credit") {
-            return L.t("créditos del propietario del workspace agotados", "workspace owner credits depleted")
+            return L.t("workspace_owner_credits_depleted")
         }
         if k.contains("member"), k.contains("credit") {
-            return L.t("créditos de tu usuario del workspace agotados", "your workspace credits are depleted")
+            return L.t("your_workspace_credits_are_depleted")
         }
         if k.contains("owner") {
-            return L.t("límite de uso del workspace alcanzado", "workspace usage limit reached")
+            return L.t("workspace_usage_limit_reached")
         }
         if k.contains("member") {
-            return L.t("límite de uso de tu usuario alcanzado", "your usage limit was reached")
+            return L.t("your_usage_limit_was_reached")
         }
         if k.contains("rate") || k.contains("limit") {
-            return L.t("límite de uso alcanzado", "usage limit reached")
+            return L.t("usage_limit_reached")
         }
         return raw.replacingOccurrences(of: "_", with: " ")
     }
@@ -256,10 +256,10 @@ enum RateLimitParsing {
 
     static func windowLabel(minutes: Int) -> String {
         switch minutes {
-        case 0: return L.t("Límite", "Limit")
-        case ..<600: return L.t("Sesión", "Session") + " (\(max(1, minutes / 60)) h)"
-        case 10080: return L.t("Semana", "Week")
-        case 1440...: return "\(minutes / 1440) " + L.t("días", "days")
+        case 0: return L.t("limit")
+        case ..<600: return L.t("session") + " (\(max(1, minutes / 60)) h)"
+        case 10080: return L.t("week")
+        case 1440...: return "\(minutes / 1440) " + L.t("days")
         default: return "\(minutes / 60) h"
         }
     }
