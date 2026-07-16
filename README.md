@@ -12,6 +12,12 @@
 
 A native macOS menu bar app — with a desktop widget — to keep an eye on your AI assistant usage — **Claude**, **OpenAI**, **OpenCode** and **DeepSeek** — without leaving the keyboard: plan limits at a glance, token counts, cost and prepaid balance.
 
+## Download
+
+**[⬇ Download AI Usage.dmg](https://github.com/aitorsola/AI-Usage/releases/latest/download/AI-Usage.dmg)** — open the `.dmg` and drag **AI Usage** into your Applications folder.
+
+Universal build (Apple Silicon + Intel), signed with a Developer ID certificate and notarized by Apple, so it opens without Gatekeeper warnings. Requires macOS 14 or later. Prefer to compile it yourself? See [Build from source](#build-from-source).
+
 ## Features
 
 - **Menu bar at a glance** — remaining percentage of your session and weekly limits (e.g. `✳ 63% · 87%`). Configurable: remaining vs. used, and which provider drives the number — Claude, OpenAI, OpenCode (today's tokens), DeepSeek (balance) or today's total cost.
@@ -36,7 +42,7 @@ A native macOS menu bar app — with a desktop widget — to keep an eye on your
 - macOS 14 or later (Apple Silicon and Intel).
 - Xcode 15+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) — the build generates an Xcode project that bundles the app together with its widget extension.
 
-## Build & install
+## Build from source
 
 ```sh
 brew install xcodegen   # once
