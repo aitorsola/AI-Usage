@@ -1,3 +1,13 @@
+<p align="center">
+ <img src="https://github.com/user-attachments/assets/864bf8c1-37ef-4564-a67d-138bfcc37fbe" height="360" alt="Menu bar panel">
+  &nbsp;&nbsp;
+ <img src="https://github.com/user-attachments/assets/ffab120f-0451-449e-91d1-4329d1aa8544" height="360" alt="Desktop widget — three sizes">
+</p>
+
+<p align="center">
+ <img src="https://github.com/user-attachments/assets/b276963b-efcb-4aee-8e28-762f389e532f" width="680" alt="Dashboard window">
+</p>
+
 # AI Usage
 
 A native macOS menu bar app — with a desktop widget — to keep an eye on your AI assistant usage — **Claude**, **OpenAI**, **OpenCode** and **DeepSeek** — without leaving the keyboard: plan limits at a glance, token counts, cost and prepaid balance.
