@@ -63,3 +63,11 @@ targets:
         CFBundleVersion: "4"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+
+schemes:
+  AIUsage:
+    build:
+      targets:
+        AIUsage: all
+    run:
+      config: Release
