@@ -104,7 +104,7 @@ private struct GaugeBar: View {
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            ProgressView(value: used, total: 100).tint(tint)
+            ProgressView(value: shown, total: 100).tint(color(used: used))
             if let resets = gauge.resetsAt {
                 Text(Formatters.resetCompact(resets))
                     .font(.caption2)
@@ -112,6 +112,14 @@ private struct GaugeBar: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    private func color(used: Double) -> Color {
+        switch used {
+        case 90...: return .red
+        case 70..<90: return .orange
+        default: return tint
+        }
     }
 }
 
@@ -170,6 +178,9 @@ private struct SettingsSheet: View {
             }
             .navigationTitle("AI Usage")
             .navigationBarTitleDisplayMode(.inline)
+            // The display mode is baked into the widget snapshot; push it to
+            // the widget right away instead of waiting for the next refresh.
+            .onChange(of: limitDisplay) { store.writeSnapshot() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { dismiss() } label: { Image(systemName: "xmark.circle.fill") }

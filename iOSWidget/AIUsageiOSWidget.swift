@@ -106,7 +106,7 @@ private struct ProviderBlock: View {
                 Spacer()
                 Text("\(Int(shown.rounded()))%").font(.caption2.monospacedDigit().bold())
             }
-            ProgressView(value: gauge.used, total: 100).tint(color)
+            ProgressView(value: shown, total: 100).tint(color)
             if showReset, let reset = gauge.reset {
                 Text(reset).font(.system(size: 9)).foregroundStyle(.tertiary).lineLimit(1)
             }

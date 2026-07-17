@@ -28,9 +28,13 @@ struct SnapshotProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SnapshotEntry>) -> Void) {
         let snap = WidgetShared.load() ?? .placeholder
-        let entry = SnapshotEntry(date: snap.date, snapshot: snap)
-        // The app reloads timelines on every refresh; this is only a safety net.
-        let next = Calendar.current.date(byAdding: .minute, value: 30, to: snap.date) ?? snap.date
+        // Schedule from now, not snap.date: if the app has been closed a while
+        // its snapshot date is in the past, and an already-elapsed policy makes
+        // WidgetKit reload in a tight loop that burns the daily reload budget.
+        // The app pushes a reload when the displayed content actually changes;
+        // this is only a safety-net cadence.
+        let entry = SnapshotEntry(date: Date(), snapshot: snap)
+        let next = Date().addingTimeInterval(30 * 60)
         completion(Timeline(entries: [entry], policy: .after(next)))
     }
 }

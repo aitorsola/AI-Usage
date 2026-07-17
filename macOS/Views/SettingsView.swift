@@ -157,6 +157,10 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 480, height: Self.maxContentHeight)
+        // Both settings are baked into the widget snapshot; push them to the
+        // widget right away instead of waiting for the next refresh cycle.
+        .onChange(of: limitDisplay) { store.updateWidgetSnapshot() }
+        .onChange(of: menuSectionsRaw) { store.updateWidgetSnapshot() }
         .onAppear { ActivationPolicy.windowAppeared() }
         .onDisappear { ActivationPolicy.windowClosed() }
     }

@@ -78,6 +78,33 @@ public struct WidgetSnapshot: Codable, Hashable {
     )
 }
 
+public extension WidgetSnapshot {
+    /// What the widget must repaint promptly: the display mode and the gauges
+    /// at the integer granularity they render with. Timestamps, reset
+    /// countdowns, cost lines and week bars churn on every refresh cycle and
+    /// ride the widget's own timeline policy instead, so they are stripped
+    /// here — reloading for them would burn WidgetKit's daily reload budget.
+    var reloadFingerprint: WidgetSnapshot {
+        var copy = self
+        copy.updatedText = ""
+        copy.date = Date(timeIntervalSince1970: 0)
+        copy.weekTitle = ""
+        copy.weekBars = []
+        copy.providers = providers.map { provider in
+            var p = provider
+            p.lines = []
+            p.gauges = provider.gauges.map { gauge in
+                var g = gauge
+                g.used = g.used.rounded()
+                g.reset = nil
+                return g
+            }
+            return p
+        }
+        return copy
+    }
+}
+
 public enum WidgetShared {
     public static var fileURL: URL? {
         FileManager.default

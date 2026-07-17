@@ -54,7 +54,9 @@ final class UsageStoreiOS: ObservableObject {
         }
     }
 
-    private func writeSnapshot() {
+    private var lastReloadFingerprint: WidgetSnapshot?
+
+    func writeSnapshot() {
         let showRemaining = (UserDefaults.standard.string(forKey: SettingsKeys.limitDisplay)
             ?? LimitDisplay.remaining.rawValue) != LimitDisplay.used.rawValue
 
@@ -78,6 +80,12 @@ final class UsageStoreiOS: ObservableObject {
                                       weekTitle: "", weekBars: [],
                                       updatedText: Formatters.time(lastUpdated), date: lastUpdated)
         WidgetShared.save(snapshot)
-        WidgetCenter.shared.reloadAllTimelines()
+        // reloadAllTimelines() is budgeted by WidgetKit; reload only when
+        // something the widget shows has changed (see reloadFingerprint).
+        let fingerprint = snapshot.reloadFingerprint
+        if fingerprint != lastReloadFingerprint {
+            lastReloadFingerprint = fingerprint
+            WidgetCenter.shared.reloadAllTimelines()
+        }
     }
 }

@@ -128,7 +128,9 @@ final class UsageStore: ObservableObject {
 
     // MARK: - Widget snapshot
 
-    private func updateWidgetSnapshot() {
+    private var lastReloadFingerprint: WidgetSnapshot?
+
+    func updateWidgetSnapshot() {
         let defaults = UserDefaults.standard
         let raw = defaults.string(forKey: SettingsKeys.menuSections) ?? MenuSectionsConfig.storageDefault
         let showRemaining = (defaults.string(forKey: SettingsKeys.limitDisplay)
@@ -163,7 +165,15 @@ final class UsageStore: ObservableObject {
             date: lastUpdated
         )
         WidgetShared.save(snapshot)
-        WidgetCenter.shared.reloadAllTimelines()
+        // reloadAllTimelines() is budgeted by WidgetKit (tens of reloads per
+        // day); calling it on every 60 s cycle starves the repaints that
+        // matter. Reload only when something the widget shows has changed —
+        // countdown/cost freshness rides the timeline's 30-minute policy.
+        let fingerprint = snapshot.reloadFingerprint
+        if fingerprint != lastReloadFingerprint {
+            lastReloadFingerprint = fingerprint
+            WidgetCenter.shared.reloadAllTimelines()
+        }
     }
 
     private func wsProvider(_ data: ProviderData) -> WSProvider {
