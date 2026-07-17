@@ -28,7 +28,12 @@ final class WatchSync: NSObject, WCSessionDelegate {
         let session = WCSession.default
         guard session.activationState == .activated,
               let data = try? JSONEncoder().encode(snapshot) else { return }
-        let payload = ["snapshot": data]
+        var payload: [String: Any] = ["snapshot": data]
+        // Hand the tokens over so the watch can fetch on its own between
+        // pushes (it cannot run the browser OAuth flows itself).
+        if let creds = try? JSONEncoder().encode(WatchCredentials.current()) {
+            payload["credentials"] = creds
+        }
 
         // Latest-state channel: delivered whenever the watch gets a chance.
         try? session.updateApplicationContext(payload)

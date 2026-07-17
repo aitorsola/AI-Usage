@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import WatchKit
 import WatchConnectivity
 import WidgetKit
 import AIUsageCore
@@ -24,19 +25,33 @@ extension Color {
 @main
 struct AIUsageWatchApp: App {
     @StateObject private var store = WatchStore()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             WatchRootView().environmentObject(store)
         }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { store.refresh() }
+            if phase == .background { WatchStore.scheduleBackgroundRefresh() }
+        }
+        // Periodic background fetch so the complication stays fresh without
+        // the phone: refresh and schedule the next slot.
+        .backgroundTask(.appRefresh("refresh")) {
+            await store.backgroundRefresh()
+            WatchStore.scheduleBackgroundRefresh()
+        }
     }
 }
 
-// Receives the ready-to-render snapshot from the iPhone and persists it in the
-// watch's own App Group so the complication can read it. The watch renders
-// exactly what the phone decided — providers, gauges and remaining/used mode.
+// The watch fetches plan limits on its own using credentials handed over once
+// by the iPhone (it cannot run the browser OAuth flows itself). Phone pushes
+// still land instantly when both apps are alive; between pushes the watch
+// refreshes independently — on foreground and via background app refresh.
 final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
     @Published var snapshot: WidgetSnapshot?
+
+    private var refreshing = false
 
     override init() {
         super.init()
@@ -45,6 +60,55 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
         WCSession.default.delegate = self
         WCSession.default.activate()
     }
+
+    // MARK: - Independent fetch
+
+    var hasCredentials: Bool {
+        AnthropicTokenStore.load() != nil || OpenAITokenStore.load() != nil
+            || DeepSeekKeyStore.load() != nil
+    }
+
+    func refresh(completion: (() -> Void)? = nil) {
+        guard !refreshing, hasCredentials else { completion?(); return }
+        refreshing = true
+
+        let group = DispatchGroup()
+        var claude = PlanStatus(needsLogin: true)
+        var openAI = PlanStatus(needsLogin: true)
+        var deepSeek = PlanStatus(needsLogin: true)
+        if AnthropicTokenStore.load() != nil {
+            group.enter(); PlanFetcher.fetch { claude = $0; group.leave() }
+        }
+        if OpenAITokenStore.load() != nil {
+            group.enter(); OpenAIUsageFetcher.fetch { openAI = $0; group.leave() }
+        }
+        if DeepSeekKeyStore.load() != nil {
+            group.enter(); DeepSeekFetcher.fetch { deepSeek = $0; group.leave() }
+        }
+        group.notify(queue: .main) { [weak self] in
+            guard let self else { completion?(); return }
+            self.refreshing = false
+            let showRemaining = (UserDefaults.standard.string(forKey: SettingsKeys.limitDisplay)
+                ?? LimitDisplay.remaining.rawValue) != LimitDisplay.used.rawValue
+            self.show(SnapshotBuilder.network(anthropic: claude, openAI: openAI,
+                                              deepSeek: deepSeek, showRemaining: showRemaining))
+            completion?()
+        }
+    }
+
+    func backgroundRefresh() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            refresh { continuation.resume() }
+        }
+    }
+
+    static func scheduleBackgroundRefresh() {
+        WKApplication.shared().scheduleBackgroundRefresh(
+            withPreferredDate: Date().addingTimeInterval(30 * 60),
+            userInfo: "refresh" as NSString) { _ in }
+    }
+
+    // MARK: - Phone pushes (credentials + freshest snapshot)
 
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
                  error: Error?) {
@@ -60,13 +124,23 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
     }
 
     private func apply(_ payload: [String: Any]) {
+        if let credData = payload["credentials"] as? Data,
+           let creds = try? JSONDecoder().decode(WatchCredentials.self, from: credData) {
+            creds.apply()
+        }
         guard let data = payload["snapshot"] as? Data,
               let snap = try? JSONDecoder().decode(WidgetSnapshot.self, from: data) else { return }
-        DispatchQueue.main.async {
-            self.snapshot = snap
-            WidgetShared.save(snap)
-            WidgetCenter.shared.reloadAllTimelines()
-        }
+        DispatchQueue.main.async { self.show(snap) }
+    }
+
+    private func show(_ snap: WidgetSnapshot) {
+        snapshot = snap
+        // Persist the host-dictated display mode for independent refreshes.
+        UserDefaults.standard.set(snap.showRemaining ? LimitDisplay.remaining.rawValue
+                                                     : LimitDisplay.used.rawValue,
+                                  forKey: SettingsKeys.limitDisplay)
+        WidgetShared.save(snap)
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }
 

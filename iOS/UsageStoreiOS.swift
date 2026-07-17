@@ -60,26 +60,9 @@ final class UsageStoreiOS: ObservableObject {
     func writeSnapshot() {
         let showRemaining = (UserDefaults.standard.string(forKey: SettingsKeys.limitDisplay)
             ?? LimitDisplay.remaining.rawValue) != LimitDisplay.used.rawValue
-
-        var ws: [WSProvider] = []
-        for p in providers where p.available {
-            let gauges = p.menuGauges.map {
-                WSGauge(label: $0.label,
-                        used: min(max($0.utilization, 0), 100),
-                        reset: $0.resetsAt.map(Formatters.resetCompact))
-            }
-            var lines: [String] = []
-            if p.kind == .deepSeek, let balance = p.plan.credits?.balance {
-                lines.append("\(L.t("balance")) \(Formatters.money(balance) ?? balance)")
-            }
-            ws.append(WSProvider(name: p.kind.name, colorHex: p.kind.colorHex,
-                                 subscription: p.plan.subscription, gauges: gauges,
-                                 lines: lines, limitReached: p.plan.limitReachedReason))
-        }
-
-        let snapshot = WidgetSnapshot(providers: ws, showRemaining: showRemaining,
-                                      weekTitle: "", weekBars: [],
-                                      updatedText: Formatters.time(lastUpdated), date: lastUpdated)
+        let snapshot = SnapshotBuilder.network(anthropic: anthropic.plan, openAI: openAI.plan,
+                                               deepSeek: deepSeek.plan,
+                                               showRemaining: showRemaining, updated: lastUpdated)
         WidgetShared.save(snapshot)
         WatchSync.shared.push(snapshot)
         // reloadAllTimelines() is budgeted by WidgetKit; reload only when
