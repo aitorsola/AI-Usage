@@ -96,7 +96,11 @@ public extension WidgetSnapshot {
             p.gauges = provider.gauges.map { gauge in
                 var g = gauge
                 g.used = g.used.rounded()
-                g.reset = nil
+                // The countdown VALUE churns every minute, but whether a reset
+                // label exists at all is rendered content (the 5-hour window
+                // only has one while a session is active) — keep the presence,
+                // drop the text.
+                g.reset = g.reset == nil ? nil : ""
                 return g
             }
             return p

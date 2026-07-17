@@ -11,10 +11,17 @@ import AIUsageCore
 @main
 struct AIUsageiOSApp: App {
     @StateObject private var store = UsageStoreiOS()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
-            RootView().environmentObject(store)
+            RootView()
+                .environmentObject(store)
+                // The refresh timer dies while the app is suspended; fetch as
+                // soon as we are foregrounded so the widget snapshot catches up.
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .active { store.refresh() }
+                }
         }
     }
 }
