@@ -4,7 +4,7 @@
 
 # AI Usage
 
-A native macOS menu bar app — with a desktop widget and an iOS companion — to keep an eye on your AI assistant usage — **Claude**, **OpenAI**, **OpenCode** and **DeepSeek** — without leaving the keyboard: plan limits at a glance, token counts, cost and prepaid balance.
+A native macOS menu bar app — with a desktop widget, an iOS companion and an Apple Watch app — to keep an eye on your AI assistant usage — **Claude**, **OpenAI**, **OpenCode** and **DeepSeek** — without leaving the keyboard: plan limits at a glance, token counts, cost and prepaid balance.
 
 ## Download
 
@@ -23,6 +23,7 @@ Universal build (Apple Silicon + Intel), signed with a Developer ID certificate 
 - **Dashboard window** — per-provider tabs with today / current block / 7-day / 30-day cards, plan limit gauges, daily history bars and a per-model breakdown.
 - **Desktop widget** — a WidgetKit widget that mirrors the panel on your desktop or Notification Center, in three sizes: *small* shows your primary provider's session and weekly gauges with reset countdowns; *medium* keeps the first provider with today's cost and tokens; *large* mirrors the whole panel — every enabled provider plus the 7-day chart (shown only when the weekly section is on). Clicking any widget opens the dashboard (`aiusage://` deep link). App and widget share a ready-to-render snapshot through an App Group.
 - **iOS companion app** — an iPhone/iPad app (built from the same repo and shared core) that signs in with the same OAuth flows and shows live plan limits for Claude and OpenAI plus the DeepSeek balance. iOS has no local CLI logs, so token/cost history stays a macOS feature. Includes a **Home Screen widget** with the session and weekly gauges and their reset countdowns.
+- **Apple Watch app** — a pure mirror fed by the iPhone over WatchConnectivity: every signed-in provider with its session and weekly bars and reset info, following the remaining/used mode set in the host app. Plus a **fitness-rings style complication** for the first provider — outer ring session, inner ring weekly.
 - **Plan extras, only when they exist** — Claude extra usage (monthly overage in dollars), OpenAI credits balance, individual spend limits, DeepSeek balance, and a red banner with the reason whenever a limit is hit. Empty data never renders empty UI.
 - **Three ways to connect**
   - **Browser OAuth** (Claude, OpenAI) — OAuth 2.0 + PKCE with a local callback server, the same public flows used by Claude Code (port 54545) and Codex CLI (port 1455). The app never reads other apps' credentials, so macOS never shows keychain permission prompts.
@@ -34,8 +35,8 @@ Universal build (Apple Silicon + Intel), signed with a Developer ID certificate 
 
 ## Requirements
 
-- macOS 14 or later (Apple Silicon and Intel); the iOS companion targets iOS 17+.
-- Xcode 16+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) — the generated project uses synchronized folder references and bundles four targets: the macOS app + widget and the iOS app + widget, all linked against the `AIUsageCore` Swift package.
+- macOS 14 or later (Apple Silicon and Intel); the iOS companion targets iOS 17+ and the watch app watchOS 10+.
+- Xcode 16+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) — the generated project uses synchronized folder references and bundles six targets: app + widget for macOS, iOS and watchOS, all linked against the `AIUsageCore` Swift package.
 
 ## Build from source
 
@@ -59,6 +60,8 @@ open AIUsage.xcodeproj
 ```
 
 Select the **AIUsageiOS** scheme and run it on your device or the simulator. The iOS targets use automatic signing: to run on a device, change `DEVELOPMENT_TEAM` in `project.yml` (or the Signing & Capabilities tab) to your own team — the App Group used by the widget requires a paid developer account.
+
+The **Apple Watch app ships embedded in the iOS app** (or run the `AIUsageWatch` scheme against a paired watch). Development installs need the watch registered as a device in your developer account and **Developer Mode enabled on the watch itself** (Settings → Privacy & Security → Developer Mode — note this is a different menu from Settings → Developer).
 
 ## Tests
 
@@ -161,15 +164,22 @@ Everything runs locally. The only network requests are the usage/profile/balance
 │   ├── AIUsageiOSApp.swift              # App entry point + provider list UI
 │   ├── UsageStoreiOS.swift              # Network-only store + widget snapshot
 │   ├── AuthCoordinator.swift            # OAuth via ASWebAuthenticationSession
+│   ├── WatchSync.swift                  # Pushes the snapshot to the watch (WCSession)
 │   └── Assets.xcassets                  # iOS app icon
 ├── iOSWidget/
 │   └── AIUsageiOSWidget.swift       # Home Screen widget (small / medium / large)
 ├── iOSTests/                       # iOS unit tests (hosted in the app, Cmd+U)
+├── watchOS/
+│   └── AIUsageWatchApp.swift        # Watch app: receives the snapshot, lists providers
+├── watchOSWidget/
+│   └── AIUsageWatchWidget.swift     # Rings complication (accessoryCircular)
 └── Signing/
     ├── App.entitlements                 # App Group entitlement (macOS app)
     ├── Widget.entitlements              # App Group + sandbox (macOS widget)
     ├── iOSApp.entitlements              # App Group entitlement (iOS app)
-    └── iOSWidget.entitlements           # App Group entitlement (iOS widget)
+    ├── iOSWidget.entitlements           # App Group entitlement (iOS widget)
+    ├── WatchApp.entitlements            # App Group entitlement (watch app)
+    └── WatchWidget.entitlements         # App Group entitlement (watch widget)
 ```
 
 ## Notes
