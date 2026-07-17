@@ -4,6 +4,7 @@ options:
   deploymentTarget:
     macOS: "14.0"
     iOS: "17.0"
+    watchOS: "10.0"
   createIntermediateGroups: true
   localPackagesGroup: ""
 
@@ -11,7 +12,7 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     MARKETING_VERSION: "1.4"
-    CURRENT_PROJECT_VERSION: "8"
+    CURRENT_PROJECT_VERSION: "9"
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGNING_REQUIRED: "NO"
@@ -43,7 +44,7 @@ targets:
         CFBundleName: AI Usage
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "8"
+        CFBundleVersion: "9"
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"
         NSHighResolutionCapable: true
@@ -74,7 +75,7 @@ targets:
       properties:
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "8"
+        CFBundleVersion: "9"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
@@ -102,7 +103,7 @@ targets:
         CFBundleName: AI Usage
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "8"
+        CFBundleVersion: "9"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -115,7 +116,67 @@ targets:
     dependencies:
       - target: AIUsageWidgetiOS
         embed: true
+      - target: AIUsageWatch
+        embed: true
       - package: AIUsageCore
+
+  AIUsageWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: watchOS
+        type: syncedFolder
+    dependencies:
+      - target: AIUsageWatchWidget
+        embed: true
+      - package: AIUsageCore
+    settings:
+      base:
+        PRODUCT_NAME: "AI Usage"
+        PRODUCT_BUNDLE_IDENTIFIER: dev.aitor.ai-usage.watchkitapp
+        CODE_SIGN_ENTITLEMENTS: Signing/WatchApp.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: SK4CMEFH7T
+        CODE_SIGN_IDENTITY: "Apple Development"
+        CODE_SIGNING_ALLOWED: "YES"
+        CODE_SIGNING_REQUIRED: "YES"
+    info:
+      path: Signing/WatchAppInfo.plist
+      properties:
+        CFBundleName: AI Usage
+        CFBundleDisplayName: AI Usage
+        CFBundleShortVersionString: "1.4"
+        CFBundleVersion: "9"
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: dev.aitor.ai-usage
+
+  AIUsageWatchWidget:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - path: watchOSWidget
+        type: syncedFolder
+    dependencies:
+      - package: AIUsageCore
+    settings:
+      base:
+        PRODUCT_NAME: AIUsageWatchWidget
+        PRODUCT_BUNDLE_IDENTIFIER: dev.aitor.ai-usage.watchkitapp.widget
+        CODE_SIGN_ENTITLEMENTS: Signing/WatchWidget.entitlements
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: SK4CMEFH7T
+        CODE_SIGN_IDENTITY: "Apple Development"
+        CODE_SIGNING_ALLOWED: "YES"
+        CODE_SIGNING_REQUIRED: "YES"
+    info:
+      path: Signing/WatchWidgetInfo.plist
+      properties:
+        CFBundleDisplayName: AI Usage
+        CFBundleShortVersionString: "1.4"
+        CFBundleVersion: "9"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
   AIUsageMacTests:
     type: bundle.unit-test
@@ -171,7 +232,7 @@ targets:
       properties:
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "8"
+        CFBundleVersion: "9"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
@@ -196,3 +257,9 @@ schemes:
       config: Debug
       targets:
         - AIUsageiOSTests
+  AIUsageWatch:
+    build:
+      targets:
+        AIUsageWatch: all
+    run:
+      config: Release

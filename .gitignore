@@ -9,3 +9,5 @@ Signing/AppInfo.plist
 Signing/WidgetInfo.plist
 Signing/iOSAppInfo.plist
 Signing/iOSWidgetInfo.plist
+Signing/WatchAppInfo.plist
+Signing/WatchWidgetInfo.plist

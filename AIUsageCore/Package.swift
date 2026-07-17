@@ -13,7 +13,7 @@ import PackageDescription
 // localization and the App-Group widget snapshot.
 let package = Package(
     name: "AIUsageCore",
-    platforms: [.macOS(.v14), .iOS(.v17)],
+    platforms: [.macOS(.v14), .iOS(.v17), .watchOS(.v10)],
     products: [
         .library(name: "AIUsageCore", targets: ["AIUsageCore"]),
     ],

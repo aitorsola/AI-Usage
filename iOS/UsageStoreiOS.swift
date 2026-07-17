@@ -27,6 +27,7 @@ final class UsageStoreiOS: ObservableObject {
     private var timer: Timer?
 
     init() {
+        WatchSync.shared.activate()
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
@@ -80,6 +81,7 @@ final class UsageStoreiOS: ObservableObject {
                                       weekTitle: "", weekBars: [],
                                       updatedText: Formatters.time(lastUpdated), date: lastUpdated)
         WidgetShared.save(snapshot)
+        WatchSync.shared.push(snapshot)
         // reloadAllTimelines() is budgeted by WidgetKit; reload only when
         // something the widget shows has changed (see reloadFingerprint).
         let fingerprint = snapshot.reloadFingerprint
