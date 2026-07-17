@@ -106,6 +106,9 @@ struct ProviderBlock: View {
             if let reason = provider.limitReached {
                 Text(reason).font(.system(size: 9)).foregroundStyle(.red).lineLimit(1)
             }
+            if let note = provider.note {
+                Text(note).font(.system(size: 9)).foregroundStyle(.secondary).lineLimit(2)
+            }
             ForEach(provider.gauges.prefix(2), id: \.self) { g in
                 GaugeBar(gauge: g, showRemaining: showRemaining, tint: tint)
             }
@@ -200,8 +203,9 @@ struct AIUsageWidgetView: View {
                 ForEach(provider.gauges.prefix(2), id: \.self) { g in
                     BigGauge(gauge: g, showRemaining: snap.showRemaining, tint: tint)
                 }
-            } else if let line = provider?.lines.first {
-                Text(line).font(.caption).foregroundStyle(.secondary)
+            } else if let text = provider?.note ?? provider?.lines.first {
+                Text(text).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }

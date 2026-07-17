@@ -64,4 +64,12 @@ final class WidgetSharedTests: XCTestCase {
         XCTAssertNotEqual(base.reloadFingerprint,
                           snapshot(used: 37, reset: nil).reloadFingerprint)
     }
+
+    func testReloadFingerprintTracksStatusNotes() {
+        let base = snapshot(used: 37, reset: nil)
+        var noted = base
+        noted.providers[0].note = "Sin sesión"
+        XCTAssertNotEqual(base.reloadFingerprint, noted.reloadFingerprint,
+                          "cambiar la nota de estado debe repintar el widget")
+    }
 }

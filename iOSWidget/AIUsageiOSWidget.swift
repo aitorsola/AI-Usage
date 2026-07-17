@@ -53,7 +53,7 @@ struct AIUsageiOSWidgetView: View {
         VStack(alignment: .leading, spacing: family == .systemLarge ? 10 : 8) {
             if providers.isEmpty {
                 Text("AI Usage").font(.headline)
-                Text(entry.snapshot.updatedText).font(.caption2).foregroundStyle(.secondary)
+                Text(L.t("not_signed_in")).font(.caption2).foregroundStyle(.secondary)
             } else {
                 ForEach(providers, id: \.name) { provider in
                     ProviderBlock(provider: provider,
@@ -84,6 +84,12 @@ private struct ProviderBlock: View {
                 if let sub = provider.subscription {
                     Text(sub.capitalized).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                 }
+            }
+            if let reason = provider.limitReached {
+                Text(reason).font(.caption2).foregroundStyle(.red).lineLimit(1)
+            }
+            if let note = provider.note {
+                Text(note).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
             }
             // Both gauges — session (5h) and weekly — like the macOS widget.
             ForEach(Array(provider.gauges.enumerated()), id: \.offset) { _, gauge in

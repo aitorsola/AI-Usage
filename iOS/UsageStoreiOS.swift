@@ -60,8 +60,12 @@ final class UsageStoreiOS: ObservableObject {
     func writeSnapshot() {
         let showRemaining = (UserDefaults.standard.string(forKey: SettingsKeys.limitDisplay)
             ?? LimitDisplay.remaining.rawValue) != LimitDisplay.used.rawValue
+        var credentialed: Set<ProviderKind> = []
+        if AnthropicTokenStore.load() != nil { credentialed.insert(.anthropic) }
+        if OpenAITokenStore.load() != nil || CodexAuthFile.load() != nil { credentialed.insert(.openAI) }
+        if DeepSeekKeyStore.load() != nil { credentialed.insert(.deepSeek) }
         let snapshot = SnapshotBuilder.network(anthropic: anthropic.plan, openAI: openAI.plan,
-                                               deepSeek: deepSeek.plan,
+                                               deepSeek: deepSeek.plan, credentialed: credentialed,
                                                showRemaining: showRemaining, updated: lastUpdated)
         WidgetShared.save(snapshot)
         WatchSync.shared.push(snapshot)

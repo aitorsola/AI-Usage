@@ -51,7 +51,7 @@ struct RingsView: View {
         let showRemaining = entry.snapshot.showRemaining
         ZStack {
             AccessoryWidgetBackground()
-            if let provider {
+            if let provider, !provider.gauges.isEmpty {
                 let color = Color(hex: provider.colorHex)
                 if let session = provider.gauges.first {
                     ring(session, color: color, showRemaining: showRemaining)
@@ -62,6 +62,7 @@ struct RingsView: View {
                         .padding(10)
                 }
             } else {
+                // No data (signed out, never synced…): just the mark, no rings.
                 Image(systemName: "asterisk")
                     .font(.title3)
                     .foregroundStyle(Color(hex: "#D97757"))
@@ -75,10 +76,14 @@ struct RingsView: View {
         let shown = showRemaining ? 100 - used : used
         return ZStack {
             Circle().stroke(color.opacity(0.25), lineWidth: 5)
-            Circle()
-                .trim(from: 0, to: max(0.02, shown / 100))
-                .stroke(color, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                .rotationEffect(.degrees(-90))
+            // At exactly 0 the ring must be EMPTY (limit exhausted is the one
+            // moment it must not lie); any non-zero value keeps a visible nub.
+            if shown > 0 {
+                Circle()
+                    .trim(from: 0, to: max(0.02, shown / 100))
+                    .stroke(color, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
         }
     }
 }

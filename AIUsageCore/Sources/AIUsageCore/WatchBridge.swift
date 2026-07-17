@@ -77,14 +77,22 @@ public struct WatchCredentials: Codable {
 }
 
 // Builds the network-only widget snapshot shared by the iPhone app and the
-// watch: one provider per signed-in account, in fixed order, honoring the
+// watch: one provider per configured account, in fixed order, honoring the
 // remaining/used mode the host app dictates.
 public enum SnapshotBuilder {
+    // `credentialed` lists the providers with credentials stored on THIS
+    // device. Passed in (instead of read from the Keychain here) so callers
+    // decide and tests stay deterministic.
     public static func network(anthropic: PlanStatus, openAI: PlanStatus, deepSeek: PlanStatus,
+                               credentialed: Set<ProviderKind> = [],
                                showRemaining: Bool, updated: Date = Date()) -> WidgetSnapshot {
         var providers: [WSProvider] = []
         let all: [(ProviderKind, PlanStatus)] = [(.anthropic, anthropic), (.openAI, openAI), (.deepSeek, deepSeek)]
-        for (kind, plan) in all where !plan.needsLogin {
+        for (kind, plan) in all {
+            // Never-signed-in providers stay out of the widget; a provider
+            // WITH credentials always shows up — with a note when its session
+            // or fetch went wrong, instead of silently vanishing.
+            guard !plan.needsLogin || credentialed.contains(kind) else { continue }
             let data = ProviderData(kind: kind, plan: plan, available: true)
             let gauges = data.menuGauges.map {
                 WSGauge(label: $0.label,
@@ -95,9 +103,16 @@ public enum SnapshotBuilder {
             if kind == .deepSeek, let balance = plan.credits?.balance {
                 lines.append("\(L.t("balance")) \(Formatters.money(balance) ?? balance)")
             }
+            var note: String?
+            if plan.needsLogin {
+                note = plan.error ?? L.t("not_signed_in")
+            } else if gauges.isEmpty, !plan.hasExtras, let error = plan.error {
+                note = error
+            }
             providers.append(WSProvider(name: kind.name, colorHex: kind.colorHex,
                                         subscription: plan.subscription, gauges: gauges,
-                                        lines: lines, limitReached: plan.limitReachedReason))
+                                        lines: lines, limitReached: plan.limitReachedReason,
+                                        note: note))
         }
         return WidgetSnapshot(providers: providers, showRemaining: showRemaining,
                               weekTitle: "", weekBars: [],

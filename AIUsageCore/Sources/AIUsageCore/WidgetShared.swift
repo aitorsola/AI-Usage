@@ -31,15 +31,18 @@ public struct WSProvider: Codable, Hashable {
     public var gauges: [WSGauge]
     public var lines: [String]         // ready-to-show detail lines (cost, tokens, balance…)
     public var limitReached: String?
+    public var note: String? = nil     // status note: signed out, fetch failed…
 
     public init(name: String, colorHex: String, subscription: String?,
-                gauges: [WSGauge], lines: [String], limitReached: String?) {
+                gauges: [WSGauge], lines: [String], limitReached: String?,
+                note: String? = nil) {
         self.name = name
         self.colorHex = colorHex
         self.subscription = subscription
         self.gauges = gauges
         self.lines = lines
         self.limitReached = limitReached
+        self.note = note
     }
 }
 

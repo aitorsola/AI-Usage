@@ -190,12 +190,20 @@ final class UsageStore: ObservableObject {
         if data.kind == .deepSeek, let balance = data.plan.credits?.balance {
             lines.append("\(L.t("balance")) \(Formatters.money(balance) ?? balance)")
         }
+        // Surface the state instead of rendering a bare, barless block.
+        var note: String?
+        if data.plan.needsLogin {
+            note = data.plan.error ?? L.t("not_signed_in")
+        } else if gauges.isEmpty, !data.plan.hasExtras, let error = data.plan.error {
+            note = error
+        }
         return WSProvider(name: data.kind.name,
                           colorHex: data.kind.colorHex,
                           subscription: data.plan.subscription,
                           gauges: gauges,
                           lines: lines,
-                          limitReached: data.plan.limitReachedReason)
+                          limitReached: data.plan.limitReachedReason,
+                          note: note)
     }
 }
 

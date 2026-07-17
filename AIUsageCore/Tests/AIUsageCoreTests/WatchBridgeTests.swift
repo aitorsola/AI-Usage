@@ -47,6 +47,37 @@ final class WatchBridgeTests: XCTestCase {
         XCTAssertEqual(deepSeek.lines.count, 1, "el saldo va como línea")
     }
 
+    func testBuilderKeepsCredentialedProviderWithNote() {
+        // Sesión caducada PERO con credenciales en el dispositivo: el proveedor
+        // no desaparece del widget — se queda con la nota de estado.
+        let expired = PlanStatus(error: "caducada", needsLogin: true)
+        let snap = SnapshotBuilder.network(anthropic: expired,
+                                           openAI: plan(needsLogin: true),
+                                           deepSeek: plan(needsLogin: true),
+                                           credentialed: [.anthropic],
+                                           showRemaining: true)
+        XCTAssertEqual(snap.providers.map(\.name), ["Claude"])
+        XCTAssertEqual(snap.providers.first?.note, "caducada")
+        XCTAssertEqual(snap.providers.first?.gauges.isEmpty, true)
+    }
+
+    func testBuilderNotesFetchErrorsAndStaysQuietWhenHealthy() {
+        // Error de red con sesión válida → nota con el error.
+        let failed = PlanStatus(error: "HTTP 500")
+        let snap = SnapshotBuilder.network(anthropic: failed,
+                                           openAI: plan(needsLogin: true),
+                                           deepSeek: plan(needsLogin: true),
+                                           showRemaining: true)
+        XCTAssertEqual(snap.providers.first?.note, "HTTP 500")
+
+        // Proveedor sano → sin nota.
+        let healthy = SnapshotBuilder.network(anthropic: plan(gaugeKeys: ["five_hour"]),
+                                              openAI: plan(needsLogin: true),
+                                              deepSeek: plan(needsLogin: true),
+                                              showRemaining: true)
+        XCTAssertNil(healthy.providers.first?.note)
+    }
+
     func testCredentialsCodableRoundtrip() throws {
         let creds = WatchCredentials(
             anthropic: .init(access: "a-token", refresh: "a-refresh",
