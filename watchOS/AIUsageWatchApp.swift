@@ -36,10 +36,11 @@ struct AIUsageWatchApp: App {
             if phase == .background { WatchStore.scheduleBackgroundRefresh() }
         }
         // Periodic background fetch so the complication stays fresh without
-        // the phone: refresh and schedule the next slot.
+        // the phone. The next slot is booked BEFORE fetching: if the network
+        // hangs or the runtime suspends us mid-await, the chain survives.
         .backgroundTask(.appRefresh("refresh")) {
-            await store.backgroundRefresh()
             WatchStore.scheduleBackgroundRefresh()
+            await store.backgroundRefresh()
         }
     }
 }
@@ -56,6 +57,10 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
     override init() {
         super.init()
         snapshot = WidgetShared.load()
+        // Every launch re-books the chain — including background launches
+        // (a complication push waking the app) and the first run after a
+        // reboot, which clears previously scheduled refreshes.
+        Self.scheduleBackgroundRefresh()
         guard WCSession.isSupported() else { return }
         WCSession.default.delegate = self
         WCSession.default.activate()
@@ -90,15 +95,33 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
             self.refreshing = false
             let showRemaining = (UserDefaults.standard.string(forKey: SettingsKeys.limitDisplay)
                 ?? LimitDisplay.remaining.rawValue) != LimitDisplay.used.rawValue
+            var credentialed: Set<ProviderKind> = []
+            if AnthropicTokenStore.load() != nil { credentialed.insert(.anthropic) }
+            if OpenAITokenStore.load() != nil { credentialed.insert(.openAI) }
+            if DeepSeekKeyStore.load() != nil { credentialed.insert(.deepSeek) }
             self.show(SnapshotBuilder.network(anthropic: claude, openAI: openAI,
-                                              deepSeek: deepSeek, showRemaining: showRemaining))
+                                              deepSeek: deepSeek, credentialed: credentialed,
+                                              showRemaining: showRemaining))
             completion?()
         }
     }
 
     func backgroundRefresh() async {
+        // The background runtime window is short: cap the fetch so this task
+        // always returns instead of hanging until the runtime kills it. Both
+        // completion paths land on the main queue, so the flag is race-free.
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            refresh { continuation.resume() }
+            DispatchQueue.main.async { [weak self] in
+                var resumed = false
+                func finishOnce() {
+                    guard !resumed else { return }
+                    resumed = true
+                    continuation.resume()
+                }
+                guard let self else { finishOnce(); return }
+                self.refresh { finishOnce() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 12) { finishOnce() }
+            }
         }
     }
 
@@ -190,6 +213,9 @@ private struct ProviderCell: View {
             }
             if let reason = provider.limitReached {
                 Text(reason).font(.caption2).foregroundStyle(.red).lineLimit(2)
+            }
+            if let note = provider.note {
+                Text(note).font(.caption2).foregroundStyle(.secondary).lineLimit(3)
             }
             ForEach(Array(provider.gauges.prefix(2).enumerated()), id: \.offset) { _, gauge in
                 gaugeRow(gauge, color: color)

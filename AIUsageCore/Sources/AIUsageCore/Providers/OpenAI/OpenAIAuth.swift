@@ -196,12 +196,16 @@ public enum OpenAITokenStore {
         if let m = creds.email { payload["email"] = m }
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
         delete()
-        let attrs: [String: Any] = [
+        var attrs: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: NSUserName(),
             kSecValueData as String: data,
         ]
+        #if !os(macOS)
+        // Readable during locked background refreshes (watch complication).
+        attrs[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        #endif
         SecItemAdd(attrs as CFDictionary, nil)
     }
 

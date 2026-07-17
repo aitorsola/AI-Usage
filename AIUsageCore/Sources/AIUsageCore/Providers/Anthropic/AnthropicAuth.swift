@@ -148,12 +148,17 @@ public enum AnthropicTokenStore {
         if let e = creds.expiresAt { payload["expiresAt"] = e.timeIntervalSince1970 * 1000 }
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
         delete()
-        let attrs: [String: Any] = [
+        var attrs: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: NSUserName(),
             kSecValueData as String: data,
         ]
+        #if !os(macOS)
+        // Background refreshes (watch complication) must read the tokens while
+        // the device is locked; the WhenUnlocked default would skip them.
+        attrs[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        #endif
         SecItemAdd(attrs as CFDictionary, nil)
     }
 
