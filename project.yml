@@ -12,7 +12,7 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     MARKETING_VERSION: "1.4"
-    CURRENT_PROJECT_VERSION: "12"
+    CURRENT_PROJECT_VERSION: "13"
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGNING_REQUIRED: "NO"
@@ -44,7 +44,7 @@ targets:
         CFBundleName: AI Usage
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "12"
+        CFBundleVersion: "13"
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"
         NSHighResolutionCapable: true
@@ -75,7 +75,7 @@ targets:
       properties:
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "12"
+        CFBundleVersion: "13"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
@@ -103,7 +103,7 @@ targets:
         CFBundleName: AI Usage
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "12"
+        CFBundleVersion: "13"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -147,7 +147,7 @@ targets:
         CFBundleName: AI Usage
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "12"
+        CFBundleVersion: "13"
         WKApplication: true
         WKCompanionAppBundleIdentifier: dev.aitor.ai-usage
 
@@ -174,7 +174,7 @@ targets:
       properties:
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "12"
+        CFBundleVersion: "13"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
@@ -232,7 +232,7 @@ targets:
       properties:
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "12"
+        CFBundleVersion: "13"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 

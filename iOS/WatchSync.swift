@@ -16,6 +16,7 @@ final class WatchSync: NSObject, WCSessionDelegate {
     static let shared = WatchSync()
 
     private var lastComplicationFingerprint: WidgetSnapshot?
+    private var lastCredentialIdentity: Int?
 
     func activate() {
         guard WCSession.isSupported() else { return }
@@ -28,24 +29,29 @@ final class WatchSync: NSObject, WCSessionDelegate {
         let session = WCSession.default
         guard session.activationState == .activated,
               let data = try? JSONEncoder().encode(snapshot) else { return }
-        var payload: [String: Any] = ["snapshot": data]
-        // Hand the tokens over so the watch can fetch on its own between
-        // pushes (it cannot run the browser OAuth flows itself).
-        if let creds = try? JSONEncoder().encode(WatchCredentials.current()) {
-            payload["credentials"] = creds
+
+        // Snapshot only in the persisted application context — it is not secret.
+        try? session.updateApplicationContext(["snapshot": data])
+
+        // Credentials go via transferUserInfo (queued, delivered once, then
+        // removed) so tokens don't linger at rest in the persisted context —
+        // and only when the long-lived secrets change (a login/logout or a
+        // rotated refresh token), not on every access-token refresh.
+        let creds = WatchCredentials.current()
+        let identity = "\(creds.anthropic?.refresh ?? "")|\(creds.openAI?.refresh ?? "")|\(creds.deepSeekKey ?? "")".hashValue
+        if identity != lastCredentialIdentity, let credData = try? JSONEncoder().encode(creds) {
+            lastCredentialIdentity = identity
+            session.transferUserInfo(["credentials": credData])
         }
 
-        // Latest-state channel: delivered whenever the watch gets a chance.
-        try? session.updateApplicationContext(payload)
-
-        // Complication wake-ups are budgeted (~50/day): spend one only when
-        // the rendered content actually changed.
+        // Complication wake-ups are budgeted (~50/day): spend one only when the
+        // rendered content changed. Snapshot only — no credentials.
         let fingerprint = snapshot.reloadFingerprint
         if session.isComplicationEnabled,
            fingerprint != lastComplicationFingerprint,
            session.remainingComplicationUserInfoTransfers > 0 {
             lastComplicationFingerprint = fingerprint
-            session.transferCurrentComplicationUserInfo(payload)
+            session.transferCurrentComplicationUserInfo(["snapshot": data])
         }
     }
 
