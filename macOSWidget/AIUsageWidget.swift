@@ -27,15 +27,11 @@ struct SnapshotProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SnapshotEntry>) -> Void) {
-        let snap = WidgetShared.load() ?? .placeholder
-        // Schedule from now, not snap.date: if the app has been closed a while
-        // its snapshot date is in the past, and an already-elapsed policy makes
-        // WidgetKit reload in a tight loop that burns the daily reload budget.
-        // The app pushes a reload when the displayed content actually changes;
-        // this is only a safety-net cadence.
-        let entry = SnapshotEntry(date: Date(), snapshot: snap)
-        let next = Date().addingTimeInterval(30 * 60)
-        completion(Timeline(entries: [entry], policy: .after(next)))
+        // App-driven: the always-running menu bar app writes the snapshot and
+        // reloads the timeline. (macOS can't share the keychain with the widget
+        // without a provisioning profile, so the widget can't self-fetch.)
+        let entry = SnapshotEntry(date: Date(), snapshot: WidgetShared.load() ?? .placeholder)
+        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(30 * 60))))
     }
 }
 

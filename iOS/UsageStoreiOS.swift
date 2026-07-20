@@ -56,6 +56,7 @@ final class UsageStoreiOS: ObservableObject {
     }
 
     private var lastReloadFingerprint: WidgetSnapshot?
+    private var lastReloadAt: Date?
 
     func writeSnapshot() {
         let showRemaining = (UserDefaults.standard.string(forKey: SettingsKeys.limitDisplay)
@@ -69,11 +70,14 @@ final class UsageStoreiOS: ObservableObject {
                                                showRemaining: showRemaining, updated: lastUpdated)
         WidgetShared.save(snapshot)
         WatchSync.shared.push(snapshot)
-        // reloadAllTimelines() is budgeted by WidgetKit; reload only when
-        // something the widget shows has changed (see reloadFingerprint).
+        // Reload on any real content change, and at least every few minutes
+        // while the app is foregrounded so the reset countdown never freezes.
         let fingerprint = snapshot.reloadFingerprint
-        if fingerprint != lastReloadFingerprint {
+        let now = Date()
+        let overdue = lastReloadAt.map { now.timeIntervalSince($0) >= 300 } ?? true
+        if fingerprint != lastReloadFingerprint || overdue {
             lastReloadFingerprint = fingerprint
+            lastReloadAt = now
             WidgetCenter.shared.reloadAllTimelines()
         }
     }

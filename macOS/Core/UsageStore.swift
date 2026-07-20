@@ -129,6 +129,8 @@ final class UsageStore: ObservableObject {
     // MARK: - Widget snapshot
 
     private var lastReloadFingerprint: WidgetSnapshot?
+    private var lastReloadAt: Date?
+    private static let widgetReloadFloor: TimeInterval = 300   // ≤5 min stale
 
     func updateWidgetSnapshot() {
         let defaults = UserDefaults.standard
@@ -165,13 +167,17 @@ final class UsageStore: ObservableObject {
             date: lastUpdated
         )
         WidgetShared.save(snapshot)
-        // reloadAllTimelines() is budgeted by WidgetKit (tens of reloads per
-        // day); calling it on every 60 s cycle starves the repaints that
-        // matter. Reload only when something the widget shows has changed —
-        // countdown/cost freshness rides the timeline's 30-minute policy.
+        // The menu bar app runs continuously, so IT drives the widget rather
+        // than WidgetKit's background timeline policy, which barely fires for
+        // an agent app. Reload on any real content change, and at least every
+        // few minutes regardless so the reset countdown never freezes — a
+        // stable integer % must not pin a days-old render.
         let fingerprint = snapshot.reloadFingerprint
-        if fingerprint != lastReloadFingerprint {
+        let now = Date()
+        let overdue = lastReloadAt.map { now.timeIntervalSince($0) >= Self.widgetReloadFloor } ?? true
+        if fingerprint != lastReloadFingerprint || overdue {
             lastReloadFingerprint = fingerprint
+            lastReloadAt = now
             WidgetCenter.shared.reloadAllTimelines()
         }
     }
