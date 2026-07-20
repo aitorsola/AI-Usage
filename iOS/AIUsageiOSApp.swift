@@ -130,6 +130,43 @@ private struct GaugeBar: View {
     }
 }
 
+// An OAuth provider section that surfaces sign-in progress AND failures —
+// previously a failed exchange or a closed browser sheet left no feedback.
+private struct OAuthSection: View {
+    let title: String
+    let signInLabel: String
+    let brand: Color
+    let signedIn: Bool
+    @ObservedObject var login: ProviderLogin
+    let onSignOut: () -> Void
+
+    var body: some View {
+        Section(title) {
+            if signedIn {
+                Button(L.t("sign_out"), role: .destructive) { onSignOut() }
+            } else {
+                Button(signInLabel) { login.begin() }.tint(brand)
+                switch login.phase {
+                case .waiting:
+                    label(L.t("waiting_for_browser_authorization"), "safari", .secondary)
+                case .exchanging:
+                    label(L.t("exchanging_the_code_for_a_session"), "arrow.triangle.2.circlepath", .secondary)
+                case .failed(let message):
+                    label(message, "exclamationmark.triangle.fill", .orange)
+                case .idle:
+                    EmptyView()
+                }
+            }
+        }
+    }
+
+    private func label(_ text: String, _ symbol: String, _ color: Color) -> some View {
+        Label(text, systemImage: symbol)
+            .font(.caption)
+            .foregroundStyle(color)
+    }
+}
+
 private struct SettingsSheet: View {
     @EnvironmentObject private var store: UsageStoreiOS
     @Environment(\.dismiss) private var dismiss
@@ -146,30 +183,26 @@ private struct SettingsSheet: View {
                     .pickerStyle(.segmented)
                 }
 
-                Section("Claude") {
-                    if AnthropicTokenStore.load() == nil {
-                        Button(L.t("sign_in_with_claude")) { store.anthropicLogin.begin() }
-                            .tint(ProviderKind.anthropic.brand)
-                    } else {
-                        Button(L.t("sign_out"), role: .destructive) {
-                            AnthropicTokenStore.delete(); store.refresh()
-                        }
-                    }
-                }
+                // Signed-in state follows whether the session actually WORKS
+                // (plan.needsLogin), not merely whether a stale token sits in
+                // the keychain — otherwise a dead session still reads as
+                // "signed in" here while the dashboard says it expired.
+                OAuthSection(title: "Claude",
+                             signInLabel: L.t("sign_in_with_claude"),
+                             brand: ProviderKind.anthropic.brand,
+                             signedIn: !(store.anthropic.plan.needsLogin || AnthropicTokenStore.load() == nil),
+                             login: store.anthropicLogin,
+                             onSignOut: { AnthropicTokenStore.delete(); store.refresh() })
 
-                Section("OpenAI") {
-                    if OpenAITokenStore.load() == nil {
-                        Button(L.t("sign_in_with_openai")) { store.openAILogin.begin() }
-                            .tint(ProviderKind.openAI.brand)
-                    } else {
-                        Button(L.t("sign_out"), role: .destructive) {
-                            OpenAITokenStore.delete(); store.refresh()
-                        }
-                    }
-                }
+                OAuthSection(title: "OpenAI",
+                             signInLabel: L.t("sign_in_with_openai"),
+                             brand: ProviderKind.openAI.brand,
+                             signedIn: !(store.openAI.plan.needsLogin || OpenAITokenStore.load() == nil),
+                             login: store.openAILogin,
+                             onSignOut: { OpenAITokenStore.delete(); store.refresh() })
 
                 Section("DeepSeek") {
-                    if DeepSeekKeyStore.load() == nil {
+                    if store.deepSeek.plan.needsLogin || DeepSeekKeyStore.load() == nil {
                         SecureField(L.t("paste_api_key"), text: $deepSeekKey)
                         Button(L.t("save")) {
                             DeepSeekKeyStore.save(deepSeekKey); deepSeekKey = ""; store.refresh()
