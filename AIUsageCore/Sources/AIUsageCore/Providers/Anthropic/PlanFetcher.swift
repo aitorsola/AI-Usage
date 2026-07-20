@@ -25,25 +25,55 @@ public enum PlanFetcher {
         }
     }
 
+    private static func isValid(_ c: AnthropicOAuth.OwnCredentials) -> Bool {
+        c.expiresAt.map { $0 > Date().addingTimeInterval(60) } ?? true
+    }
+
     private static func resolveToken(_ done: @escaping (_ token: String?, _ subscription: String?, _ problem: String?, _ needsLogin: Bool) -> Void) {
         guard let own = AnthropicTokenStore.load() else {
             done(nil, nil, L.t("no_session_sign_in_with_your"), true)
             return
         }
-        let stillValid = own.expiresAt.map { $0 > Date().addingTimeInterval(60) } ?? true
-        if stillValid {
-            done(own.accessToken, nil, nil, false)
+        if isValid(own) {
+            done(own.accessToken, nil, nil, false)   // fast path — no lock needed
             return
         }
-        guard let rt = own.refreshToken else {
+        guard own.refreshToken != nil else {
             done(nil, nil, L.t("session_expired_sign_in_again"), true)
             return
         }
-        AnthropicOAuth.refresh(refreshToken: rt) { creds, _ in
-            if let creds {
-                done(creds.accessToken, nil, nil, false)
-            } else {
+        // Expired: serialize the refresh across the app and its extensions so
+        // two processes never spend the same refresh token at once.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let lock = TokenRefreshLock.acquire(AnthropicTokenStore.service)
+            // Re-read after acquiring: another process may have just refreshed.
+            guard let current = AnthropicTokenStore.load() else {
+                TokenRefreshLock.release(lock)
                 done(nil, nil, L.t("session_expired_sign_in_again"), true)
+                return
+            }
+            if isValid(current) {
+                TokenRefreshLock.release(lock)
+                done(current.accessToken, nil, nil, false)
+                return
+            }
+            guard let rt = current.refreshToken else {
+                TokenRefreshLock.release(lock)
+                done(nil, nil, L.t("session_expired_sign_in_again"), true)
+                return
+            }
+            AnthropicOAuth.refresh(refreshToken: rt) { creds, error in
+                TokenRefreshLock.release(lock)
+                if let creds {
+                    done(creds.accessToken, nil, nil, false)
+                } else if OAuthError.isAuthFailure(error) {
+                    // Refresh token genuinely rejected → real re-login needed.
+                    done(nil, nil, L.t("session_expired_sign_in_again"), true)
+                } else {
+                    // Transient (network / server) failure: keep the session and
+                    // retry next cycle instead of forcing a re-login.
+                    done(nil, nil, error ?? L.t("no_session"), false)
+                }
             }
         }
     }

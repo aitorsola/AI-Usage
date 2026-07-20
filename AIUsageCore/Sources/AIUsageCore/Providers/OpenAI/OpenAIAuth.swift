@@ -232,26 +232,52 @@ public enum OpenAIUsageFetcher {
         }
     }
 
+    private static func isValid(_ c: OpenAIOAuth.Credentials) -> Bool {
+        c.expiresAt.map { $0 > Date().addingTimeInterval(60) } ?? true
+    }
+
     private static func resolveCredentials(_ done: @escaping (OpenAIOAuth.Credentials?, String?, Bool) -> Void) {
         guard let stored = OpenAITokenStore.load() ?? CodexAuthFile.load() else {
             done(nil, L.t("no_session_sign_in_with_your_2"), true)
             return
         }
-        let valid = stored.expiresAt.map { $0 > Date().addingTimeInterval(60) } ?? true
-        if valid {
-            done(stored, nil, false)
+        if isValid(stored) {
+            done(stored, nil, false)   // fast path — no lock needed
             return
         }
-        guard let rt = stored.refreshToken else {
+        guard stored.refreshToken != nil else {
             done(nil, L.t("session_expired_sign_in_again"), true)
             return
         }
-        OpenAIOAuth.refresh(refreshToken: rt, accountID: stored.accountID,
-                            email: stored.email) { creds, _ in
-            if let creds {
-                done(creds, nil, false)
-            } else {
+        // Expired: serialize the refresh across app and extensions.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let lock = TokenRefreshLock.acquire(OpenAITokenStore.service)
+            guard let current = OpenAITokenStore.load() ?? CodexAuthFile.load() else {
+                TokenRefreshLock.release(lock)
                 done(nil, L.t("session_expired_sign_in_again"), true)
+                return
+            }
+            if isValid(current) {
+                TokenRefreshLock.release(lock)
+                done(current, nil, false)
+                return
+            }
+            guard let rt = current.refreshToken else {
+                TokenRefreshLock.release(lock)
+                done(nil, L.t("session_expired_sign_in_again"), true)
+                return
+            }
+            OpenAIOAuth.refresh(refreshToken: rt, accountID: current.accountID,
+                                email: current.email) { creds, error in
+                TokenRefreshLock.release(lock)
+                if let creds {
+                    done(creds, nil, false)
+                } else if OAuthError.isAuthFailure(error) {
+                    done(nil, L.t("session_expired_sign_in_again"), true)
+                } else {
+                    // Transient failure: keep the session, retry next cycle.
+                    done(nil, error ?? L.t("no_session"), false)
+                }
             }
         }
     }
