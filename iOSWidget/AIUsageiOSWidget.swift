@@ -35,8 +35,11 @@ struct AIUsageiOSProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<AIUsageEntry>) -> Void) {
-        let entry = AIUsageEntry(date: Date(), snapshot: WidgetShared.load() ?? .placeholder)
-        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(1800))))
+        // Fetch on our own — the iPhone app need not be open.
+        WidgetRefresh.snapshot { snap in
+            let entry = AIUsageEntry(date: Date(), snapshot: snap)
+            completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(15 * 60))))
+        }
     }
 }
 

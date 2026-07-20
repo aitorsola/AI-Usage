@@ -6,5 +6,9 @@
 	<array>
 		<string>group.dev.aitor.ai-usage</string>
 	</array>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)dev.aitor.ai-usage</string>
+	</array>
 </dict>
 </plist>

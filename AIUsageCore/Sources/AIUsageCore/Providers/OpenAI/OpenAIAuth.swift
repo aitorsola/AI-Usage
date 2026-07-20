@@ -164,15 +164,7 @@ public enum OpenAITokenStore {
     static let service = "AI Usage-openai-credentials"
 
     public static func load() -> OpenAIOAuth.Credentials? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data,
+        guard let data = Keychain.load(service: service),
               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let token = obj["accessToken"] as? String, !token.isEmpty
         else { return nil }
@@ -195,26 +187,11 @@ public enum OpenAITokenStore {
         if let p = creds.planType { payload["planType"] = p }
         if let m = creds.email { payload["email"] = m }
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
-        delete()
-        var attrs: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: NSUserName(),
-            kSecValueData as String: data,
-        ]
-        #if !os(macOS)
-        // Readable during locked background refreshes (watch complication).
-        attrs[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        #endif
-        SecItemAdd(attrs as CFDictionary, nil)
+        Keychain.save(data, service: service)
     }
 
     public static func delete() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-        ]
-        SecItemDelete(query as CFDictionary)
+        Keychain.delete(service: service)
     }
 }
 

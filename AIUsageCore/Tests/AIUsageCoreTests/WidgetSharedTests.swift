@@ -31,6 +31,14 @@ final class WidgetSharedTests: XCTestCase {
         XCTAssertNil(WSGauge(label: "x", used: 1).reset)
     }
 
+    func testSnapshotAge() {
+        let old = snapshot(used: 1, reset: nil)   // date = 1970-01-01 + 1s
+        XCTAssertGreaterThan(old.age, 60, "un snapshot antiguo se considera viejo → la extensión refetchea")
+        let fresh = WidgetSnapshot(providers: [], showRemaining: true, weekTitle: "",
+                                   weekBars: [], updatedText: "", date: Date())
+        XCTAssertLessThan(fresh.age, 5)
+    }
+
     func testPlaceholderIsRenderable() {
         let p = WidgetSnapshot.placeholder
         XCTAssertFalse(p.providers.isEmpty)

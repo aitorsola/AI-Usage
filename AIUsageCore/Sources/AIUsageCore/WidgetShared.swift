@@ -64,6 +64,9 @@ public struct WidgetSnapshot: Codable, Hashable {
         self.date = date
     }
 
+    // How long ago this snapshot was produced.
+    public var age: TimeInterval { Date().timeIntervalSince(date) }
+
     public static let placeholder = WidgetSnapshot(
         providers: [
             WSProvider(name: "Claude", colorHex: "#D97757", subscription: nil,

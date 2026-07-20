@@ -12,15 +12,7 @@ public enum DeepSeekKeyStore {
     static let service = "AI Usage-deepseek-key"
 
     public static func load() -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data,
+        guard let data = Keychain.load(service: service),
               let key = String(data: data, encoding: .utf8), !key.isEmpty
         else { return nil }
         return key
@@ -29,26 +21,11 @@ public enum DeepSeekKeyStore {
     public static func save(_ key: String) {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else { return }
-        delete()
-        var attrs: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: NSUserName(),
-            kSecValueData as String: data,
-        ]
-        #if !os(macOS)
-        // Readable during locked background refreshes (watch complication).
-        attrs[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        #endif
-        SecItemAdd(attrs as CFDictionary, nil)
+        Keychain.save(data, service: service)
     }
 
     public static func delete() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-        ]
-        SecItemDelete(query as CFDictionary)
+        Keychain.delete(service: service)
     }
 }
 

@@ -122,15 +122,7 @@ public enum AnthropicTokenStore {
     static let service = "AI Usage-credentials"
 
     public static func load() -> AnthropicOAuth.OwnCredentials? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data,
+        guard let data = Keychain.load(service: service),
               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let token = obj["accessToken"] as? String, !token.isEmpty
         else { return nil }
@@ -147,27 +139,11 @@ public enum AnthropicTokenStore {
         if let r = creds.refreshToken { payload["refreshToken"] = r }
         if let e = creds.expiresAt { payload["expiresAt"] = e.timeIntervalSince1970 * 1000 }
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
-        delete()
-        var attrs: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: NSUserName(),
-            kSecValueData as String: data,
-        ]
-        #if !os(macOS)
-        // Background refreshes (watch complication) must read the tokens while
-        // the device is locked; the WhenUnlocked default would skip them.
-        attrs[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        #endif
-        SecItemAdd(attrs as CFDictionary, nil)
+        Keychain.save(data, service: service)
     }
 
     public static func delete() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-        ]
-        SecItemDelete(query as CFDictionary)
+        Keychain.delete(service: service)
     }
 }
 

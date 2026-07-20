@@ -35,8 +35,11 @@ struct WatchSnapshotProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WatchEntry>) -> Void) {
-        let entry = WatchEntry(date: Date(), snapshot: WidgetShared.load() ?? .placeholder)
-        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(1800))))
+        // The complication fetches on its own, independent of the watch app.
+        WidgetRefresh.snapshot { snap in
+            let entry = WatchEntry(date: Date(), snapshot: snap)
+            completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(15 * 60))))
+        }
     }
 }
 
