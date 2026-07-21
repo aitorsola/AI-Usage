@@ -18,6 +18,7 @@ final class UsageStore: ObservableObject {
     @Published var isRefreshing = false
     @Published var hasLoaded = false
     @Published var lastUpdated = Date()
+    @Published var health: [ProviderKind: PlatformHealth] = [:]
 
     private let claudeParser = UsageParser()
     private let codexParser = CodexParser()
@@ -70,12 +71,15 @@ final class UsageStore: ObservableObject {
                 var claudePlan = PlanStatus()
                 var openAILive = PlanStatus()
                 var deepSeekPlan = PlanStatus()
+                var health: [ProviderKind: PlatformHealth] = [:]
                 group.enter()
                 PlanFetcher.fetch { claudePlan = $0; group.leave() }
                 group.enter()
                 OpenAIUsageFetcher.fetch { openAILive = $0; group.leave() }
                 group.enter()
                 DeepSeekFetcher.fetch { deepSeekPlan = $0; group.leave() }
+                group.enter()
+                StatusFetcher.fetchAll([.anthropic, .openAI]) { health = $0; group.leave() }
 
                 group.notify(queue: .main) {
                     var openAIPlan = openAILive
@@ -96,6 +100,7 @@ final class UsageStore: ObservableObject {
                     self.deepSeek = ProviderData(kind: .deepSeek, snapshot: UsageSnapshot(),
                                                  plan: deepSeekPlan,
                                                  available: !deepSeekPlan.needsLogin)
+                    self.health = health
                     self.lastUpdated = Date()
                     self.hasLoaded = true
                     self.isRefreshing = false
@@ -209,7 +214,8 @@ final class UsageStore: ObservableObject {
                           gauges: gauges,
                           lines: lines,
                           limitReached: data.plan.limitReachedReason,
-                          note: note)
+                          note: note,
+                          health: health[data.kind])
     }
 }
 

@@ -43,6 +43,10 @@ enum Translations {
     ]
 
     private static let es: [String: String] = [
+        "status_operational": "Operativo",
+        "status_degraded": "Rendimiento degradado",
+        "status_outage": "Caída del servicio",
+        "status_maintenance": "En mantenimiento",
         "open_iphone_app": "Abre la app en el iPhone",
         "widget_description": "Uso de tus asistentes de IA de un vistazo.",
         "unknown_error": "Error desconocido",
@@ -167,6 +171,10 @@ enum Translations {
     ]
 
     private static let en: [String: String] = [
+        "status_operational": "Operational",
+        "status_degraded": "Degraded performance",
+        "status_outage": "Service outage",
+        "status_maintenance": "Under maintenance",
         "open_iphone_app": "Open the app on your iPhone",
         "widget_description": "Your AI assistant usage at a glance.",
         "unknown_error": "Unknown error",
@@ -291,6 +299,10 @@ enum Translations {
     ]
 
     private static let fr: [String: String] = [
+        "status_operational": "Opérationnel",
+        "status_degraded": "Performances dégradées",
+        "status_outage": "Panne de service",
+        "status_maintenance": "En maintenance",
         "open_iphone_app": "Ouvrez l’app sur votre iPhone",
         "widget_description": "L’utilisation de vos assistants IA en un coup d’œil.",
         "unknown_error": "Erreur inconnue",
@@ -415,6 +427,10 @@ enum Translations {
     ]
 
     private static let de: [String: String] = [
+        "status_operational": "Betriebsbereit",
+        "status_degraded": "Beeinträchtigte Leistung",
+        "status_outage": "Dienstausfall",
+        "status_maintenance": "In Wartung",
         "open_iphone_app": "Öffne die App auf deinem iPhone",
         "widget_description": "Die Nutzung deiner KI-Assistenten auf einen Blick.",
         "unknown_error": "Unbekannter Fehler",
@@ -539,6 +555,10 @@ enum Translations {
     ]
 
     private static let it: [String: String] = [
+        "status_operational": "Operativo",
+        "status_degraded": "Prestazioni degradate",
+        "status_outage": "Interruzione del servizio",
+        "status_maintenance": "In manutenzione",
         "open_iphone_app": "Apri l’app sul tuo iPhone",
         "widget_description": "L’utilizzo dei tuoi assistenti IA a colpo d’occhio.",
         "unknown_error": "Errore sconosciuto",
@@ -663,6 +683,10 @@ enum Translations {
     ]
 
     private static let pt: [String: String] = [
+        "status_operational": "Operacional",
+        "status_degraded": "Desempenho degradado",
+        "status_outage": "Serviço indisponível",
+        "status_maintenance": "Em manutenção",
         "open_iphone_app": "Abra o app no seu iPhone",
         "widget_description": "O uso dos seus assistentes de IA num relance.",
         "unknown_error": "Erro desconhecido",
@@ -787,6 +811,10 @@ enum Translations {
     ]
 
     private static let ja: [String: String] = [
+        "status_operational": "正常稼働中",
+        "status_degraded": "パフォーマンス低下",
+        "status_outage": "サービス障害",
+        "status_maintenance": "メンテナンス中",
         "open_iphone_app": "iPhoneでアプリを開いてください",
         "widget_description": "AIアシスタントの使用状況をひと目で。",
         "unknown_error": "不明なエラー",
@@ -911,6 +939,10 @@ enum Translations {
     ]
 
     private static let zh: [String: String] = [
+        "status_operational": "运行正常",
+        "status_degraded": "性能下降",
+        "status_outage": "服务中断",
+        "status_maintenance": "维护中",
         "open_iphone_app": "请在 iPhone 上打开应用",
         "widget_description": "一目了然地查看你的 AI 助手用量。",
         "unknown_error": "未知错误",
@@ -1035,6 +1067,10 @@ enum Translations {
     ]
 
     private static let ko: [String: String] = [
+        "status_operational": "정상 작동",
+        "status_degraded": "성능 저하",
+        "status_outage": "서비스 중단",
+        "status_maintenance": "점검 중",
         "open_iphone_app": "iPhone에서 앱을 열어주세요",
         "widget_description": "AI 어시스턴트 사용량을 한눈에 확인하세요.",
         "unknown_error": "알 수 없는 오류",
@@ -1159,6 +1195,10 @@ enum Translations {
     ]
 
     private static let ru: [String: String] = [
+        "status_operational": "Работает",
+        "status_degraded": "Снижение производительности",
+        "status_outage": "Сбой в работе",
+        "status_maintenance": "Обслуживание",
         "open_iphone_app": "Откройте приложение на iPhone",
         "widget_description": "Использование ваших ИИ-ассистентов с первого взгляда.",
         "unknown_error": "Неизвестная ошибка",

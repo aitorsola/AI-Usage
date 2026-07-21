@@ -97,6 +97,11 @@ struct ProviderBlock: View {
                         .padding(.horizontal, 4).padding(.vertical, 1)
                         .background(Capsule().fill(tint.opacity(0.18)))
                 }
+                if let health = provider.health {
+                    Image(systemName: health.iconName)
+                        .font(.system(size: 8))
+                        .foregroundStyle(Color(hex: health.colorHex))
+                }
                 Spacer()
             }
             if let reason = provider.limitReached {
@@ -194,6 +199,11 @@ struct AIUsageWidgetView: View {
                 Image(systemName: "asterisk").font(.caption2).foregroundStyle(tint)
                 Text(provider?.name ?? "AI Usage").font(.caption).fontWeight(.bold).lineLimit(1)
                 Spacer()
+                if let health = provider?.health {
+                    Image(systemName: health.iconName)
+                        .font(.system(size: 8))
+                        .foregroundStyle(Color(hex: health.colorHex))
+                }
             }
             if let provider, !provider.gauges.isEmpty {
                 ForEach(provider.gauges.prefix(2), id: \.self) { g in

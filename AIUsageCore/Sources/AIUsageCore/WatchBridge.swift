@@ -85,6 +85,7 @@ public enum SnapshotBuilder {
     // decide and tests stay deterministic.
     public static func network(anthropic: PlanStatus, openAI: PlanStatus, deepSeek: PlanStatus,
                                credentialed: Set<ProviderKind> = [],
+                               health: [ProviderKind: PlatformHealth] = [:],
                                showRemaining: Bool, updated: Date = Date()) -> WidgetSnapshot {
         var providers: [WSProvider] = []
         let all: [(ProviderKind, PlanStatus)] = [(.anthropic, anthropic), (.openAI, openAI), (.deepSeek, deepSeek)]
@@ -112,7 +113,7 @@ public enum SnapshotBuilder {
             providers.append(WSProvider(name: kind.name, colorHex: kind.colorHex,
                                         subscription: plan.subscription, gauges: gauges,
                                         lines: lines, limitReached: plan.limitReachedReason,
-                                        note: note))
+                                        note: note, health: health[kind]))
         }
         return WidgetSnapshot(providers: providers, showRemaining: showRemaining,
                               weekTitle: "", weekBars: [],

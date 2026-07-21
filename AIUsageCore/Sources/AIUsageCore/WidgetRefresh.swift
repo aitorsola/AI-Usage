@@ -46,6 +46,7 @@ public enum WidgetRefresh {
         var claude = PlanStatus(needsLogin: true)
         var openAI = PlanStatus(needsLogin: true)
         var deepSeek = PlanStatus(needsLogin: true)
+        var health: [ProviderKind: PlatformHealth] = [:]
         let group = DispatchGroup()
         if credentialed.contains(.anthropic) {
             group.enter(); PlanFetcher.fetch { claude = $0; group.leave() }
@@ -56,6 +57,7 @@ public enum WidgetRefresh {
         if credentialed.contains(.deepSeek) {
             group.enter(); DeepSeekFetcher.fetch { deepSeek = $0; group.leave() }
         }
+        group.enter(); StatusFetcher.fetchAll([.anthropic, .openAI]) { health = $0; group.leave() }
 
         var finished = false
         func complete(_ snapshot: WidgetSnapshot, persist: Bool) {
@@ -66,7 +68,8 @@ public enum WidgetRefresh {
         }
         group.notify(queue: .main) {
             complete(SnapshotBuilder.network(anthropic: claude, openAI: openAI, deepSeek: deepSeek,
-                                             credentialed: credentialed, showRemaining: showRemaining),
+                                             credentialed: credentialed, health: health,
+                                             showRemaining: showRemaining),
                      persist: true)
         }
         // Never hold the extension past its budget: keep last known good data.

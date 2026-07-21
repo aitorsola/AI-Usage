@@ -34,7 +34,7 @@ struct RootView: View {
         NavigationStack {
             List {
                 ForEach(store.providers, id: \.kind) { provider in
-                    ProviderCard(data: provider)
+                    ProviderCard(data: provider, health: store.health[provider.kind])
                 }
             }
             .navigationTitle("AI Usage")
@@ -60,6 +60,7 @@ struct RootView: View {
 
 private struct ProviderCard: View {
     let data: ProviderData
+    var health: PlatformHealth? = nil
 
     var body: some View {
         Section {
@@ -88,6 +89,15 @@ private struct ProviderCard: View {
                     Text(sub.capitalized)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                }
+                if let health {
+                    Spacer()
+                    HStack(spacing: 4) {
+                        Image(systemName: health.iconName)
+                        Text(health.label)
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(Color(hex: health.colorHex))
                 }
             }
         }

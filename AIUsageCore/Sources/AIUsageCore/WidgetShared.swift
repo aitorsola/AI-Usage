@@ -32,10 +32,11 @@ public struct WSProvider: Codable, Hashable {
     public var lines: [String]         // ready-to-show detail lines (cost, tokens, balance…)
     public var limitReached: String?
     public var note: String? = nil     // status note: signed out, fetch failed…
+    public var health: PlatformHealth? = nil   // platform incident status, when known
 
     public init(name: String, colorHex: String, subscription: String?,
                 gauges: [WSGauge], lines: [String], limitReached: String?,
-                note: String? = nil) {
+                note: String? = nil, health: PlatformHealth? = nil) {
         self.name = name
         self.colorHex = colorHex
         self.subscription = subscription
@@ -43,6 +44,7 @@ public struct WSProvider: Codable, Hashable {
         self.lines = lines
         self.limitReached = limitReached
         self.note = note
+        self.health = health
     }
 }
 

@@ -210,6 +210,15 @@ private struct ProviderCell: View {
                 if let sub = provider.subscription {
                     Text(sub.capitalized).font(.footnote).foregroundStyle(.secondary)
                 }
+                if let health = provider.health {
+                    Spacer()
+                    Image(systemName: health.iconName)
+                        .font(.footnote)
+                        .foregroundStyle(Color(hex: health.colorHex))
+                }
+            }
+            if let health = provider.health, health.isNoteworthy {
+                Text(health.label).font(.caption2).foregroundStyle(Color(hex: health.colorHex)).lineLimit(1)
             }
             if let reason = provider.limitReached {
                 Text(reason).font(.caption2).foregroundStyle(.red).lineLimit(2)

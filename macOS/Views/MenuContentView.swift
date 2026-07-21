@@ -100,9 +100,19 @@ struct MenuContentView: View {
                         .background(Capsule().fill(provider.kind.color.opacity(0.18)))
                 }
                 Spacer()
-                Text(provider.kind.detail)
+                if let health = store.health[provider.kind] {
+                    HStack(spacing: 3) {
+                        Image(systemName: health.iconName)
+                        Text(health.label)
+                    }
                     .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(health.color)
+                    .help(health.label)
+                } else {
+                    Text(provider.kind.detail)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
 
             if let reason = provider.plan.limitReachedReason {

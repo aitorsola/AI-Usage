@@ -87,6 +87,11 @@ private struct ProviderBlock: View {
                 if let sub = provider.subscription {
                     Text(sub.capitalized).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                 }
+                if let health = provider.health {
+                    Image(systemName: health.iconName)
+                        .font(.system(size: 8))
+                        .foregroundStyle(Color(hex: health.colorHex))
+                }
             }
             if let reason = provider.limitReached {
                 Text(reason).font(.caption2).foregroundStyle(.red).lineLimit(1)
