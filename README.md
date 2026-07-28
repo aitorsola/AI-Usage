@@ -20,10 +20,11 @@ Universal build (Apple Silicon + Intel), signed with a Developer ID certificate 
   - **OpenAI** — token usage from local Codex CLI sessions; live rate limits, plan, credits and spend caps from the ChatGPT backend.
   - **OpenCode** — token usage and cost read from OpenCode's local database, broken down by model. OpenCode has no subscription, so there are no percentages — just tokens and cost (which OpenCode itself has already computed).
   - **DeepSeek** — prepaid API balance from DeepSeek's official endpoint, using an API key you paste in.
-- **Dashboard window** — per-provider tabs with today / current block / 7-day / 30-day cards, plan limit gauges, daily history bars and a per-model breakdown.
+- **Dashboard window** — per-provider tabs with today / current block / 7-day / 30-day cards, plan limit gauges, daily history bars, a per-project cost breakdown (each local session attributed to its Git repository root) and a per-model breakdown.
 - **Desktop widget** — a WidgetKit widget that mirrors the panel on your desktop or Notification Center, in three sizes: *small* shows your primary provider's session and weekly gauges with reset countdowns; *medium* keeps the first provider with today's cost and tokens; *large* mirrors the whole panel — every enabled provider plus the 7-day chart (shown only when the weekly section is on). Clicking any widget opens the dashboard (`aiusage://` deep link). App and widget share a ready-to-render snapshot through an App Group.
 - **iOS companion app** — an iPhone/iPad app (built from the same repo and shared core) that signs in with the same OAuth flows and shows live plan limits for Claude and OpenAI plus the DeepSeek balance. iOS has no local CLI logs, so token/cost history stays a macOS feature. Includes a **Home Screen widget** with the session and weekly gauges and their reset countdowns.
 - **Apple Watch app** — fully self-updating: the iPhone hands the credentials over once (WatchConnectivity, encrypted between paired devices — watchOS can't run the browser OAuth flows), and from then on the watch fetches plan limits on its own, on foreground and via periodic background refresh, so the complication stays fresh even with the phone away. Shows every signed-in provider with its session and weekly bars and reset info, following the remaining/used mode set in the host app. Plus a **fitness-rings style complication** for the first provider — session ring in the provider's color, weekly ring in gray, with two tiny center percentages color-matched to their ring so each quota is unmistakable.
+- **Platform health at a glance** — a live status badge for Claude and OpenAI (operational / degraded / outage / maintenance), read from each provider's public status page and shown across the apps, every widget and the watch app.
 - **Plan extras, only when they exist** — Claude extra usage (monthly overage in dollars), OpenAI credits balance, individual spend limits, DeepSeek balance, and a red banner with the reason whenever a limit is hit. Empty data never renders empty UI, and the widgets surface a status note (signed out, fetch failed) instead of going silently blank.
 - **Three ways to connect**
   - **Browser OAuth** (Claude, OpenAI) — OAuth 2.0 + PKCE with a local callback server, the same public flows used by Claude Code (port 54545) and Codex CLI (port 1455). The app never reads other apps' credentials, so macOS never shows keychain permission prompts.
@@ -65,7 +66,7 @@ The **Apple Watch app ships embedded in the iOS app** (or run the `AIUsageWatch`
 
 ## Tests
 
-Three layers, ~70 tests in total:
+Three layers, ~90 tests in total:
 
 ```sh
 # Cross-platform core (no Xcode needed): aggregation, pricing, formatters,
@@ -138,7 +139,7 @@ Everything runs locally. The only network requests are the usage/profile/balance
 │   │   │   └── Formatters.swift         # Number, date and cost formatting
 │   │   ├── Localization.swift           # Language detection + translation catalog
 │   │   └── WidgetShared.swift           # App-Group snapshot model
-│   └── Tests/AIUsageCoreTests/          # swift test — 46 unit tests over the core
+│   └── Tests/AIUsageCoreTests/          # swift test — 70 unit tests over the core
 ├── macOS/                          # Menu bar app
 │   ├── App/
 │   │   ├── AIUsageApp.swift             # App entry point, scenes, widget deep link
