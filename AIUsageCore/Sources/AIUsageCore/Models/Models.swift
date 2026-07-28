@@ -17,12 +17,17 @@ public struct UsageEvent {
     public let cacheWrite5m: Int
     public let cacheWrite1h: Int
     public let cost: Double
+    /// Repository root this usage belongs to; "" when the source has no local
+    /// session (plan data fetched from a provider API).
+    public let project: String
 
     public init(key: String, ts: Date, model: String, input: Int, output: Int,
-                cacheRead: Int, cacheWrite5m: Int, cacheWrite1h: Int, cost: Double) {
+                cacheRead: Int, cacheWrite5m: Int, cacheWrite1h: Int, cost: Double,
+                project: String = "") {
         self.key = key
         self.ts = ts
         self.model = model
+        self.project = project
         self.input = input
         self.output = output
         self.cacheRead = cacheRead
@@ -79,6 +84,22 @@ public struct ModelUsage: Identifiable {
     }
 }
 
+public struct ProjectUsage: Identifiable {
+    public let path: String
+    public var totals = TokenTotals()
+    public var id: String { path }
+    /// Label shown in the UI. Defaults to the last path component; the
+    /// aggregator widens it to `parent/name` when two projects would otherwise
+    /// render identically (e.g. ~/AIUsage and ~/iOS/AIUsage).
+    public var name: String
+
+    public init(path: String, totals: TokenTotals = TokenTotals()) {
+        self.path = path
+        self.totals = totals
+        self.name = ProjectResolver.displayName(for: path)
+    }
+}
+
 public struct BlockInfo {
     public let start: Date
     public var lastActivity: Date
@@ -98,6 +119,7 @@ public struct UsageSnapshot {
     public var last30 = TokenTotals()
     public var days: [DayUsage] = []
     public var models: [ModelUsage] = []
+    public var projects: [ProjectUsage] = []
     public var currentBlock: BlockInfo?
     public var maxBlockCost: Double = 0
     public var lastUpdated = Date()

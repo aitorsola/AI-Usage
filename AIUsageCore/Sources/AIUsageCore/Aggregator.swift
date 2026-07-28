@@ -26,12 +26,14 @@ public enum Aggregator {
 
         var daysDict: [Date: DayUsage] = [:]
         var modelsDict: [String: ModelUsage] = [:]
+        var projectsDict: [String: ProjectUsage] = [:]
 
         for e in events {
             guard e.ts >= start30 else { continue }
             let day = cal.startOfDay(for: e.ts)
             daysDict[day, default: DayUsage(day: day)].totals.add(e)
             modelsDict[e.model, default: ModelUsage(model: e.model)].totals.add(e)
+            projectsDict[e.project, default: ProjectUsage(path: e.project)].totals.add(e)
             snap.last30.add(e)
             if e.ts >= start7 { snap.last7.add(e) }
             if e.ts >= todayStart { snap.today.add(e) }
@@ -45,6 +47,7 @@ public enum Aggregator {
         }
         snap.days = days
         snap.models = modelsDict.values.sorted { $0.totals.cost > $1.totals.cost }
+        snap.projects = disambiguated(projectsDict.values.sorted { $0.totals.cost > $1.totals.cost })
 
         var blocks: [BlockInfo] = []
         for e in events {
@@ -66,6 +69,35 @@ public enum Aggregator {
         }
         snap.lastUpdated = now
         return snap
+    }
+
+    // Two repositories can share a folder name (~/AIUsage and ~/iOS/AIUsage),
+    // which would render as two identical rows. Widen the colliding labels with
+    // as much of the parent path as it takes to tell them apart.
+    static func disambiguated(_ projects: [ProjectUsage]) -> [ProjectUsage] {
+        var result = projects
+        var depth = 1
+        while depth < 8 {
+            var byLabel: [String: [Int]] = [:]
+            for (i, p) in result.enumerated() where !p.path.isEmpty {
+                byLabel[p.name, default: []].append(i)
+            }
+            let collisions = byLabel.values.filter { $0.count > 1 }
+            if collisions.isEmpty { break }
+            depth += 1
+            for indices in collisions {
+                for i in indices {
+                    result[i].name = trailingComponents(of: result[i].path, count: depth)
+                }
+            }
+        }
+        return result
+    }
+
+    private static func trailingComponents(of path: String, count: Int) -> String {
+        let parts = path.split(separator: "/").map(String.init)
+        guard parts.count > count else { return path }
+        return parts.suffix(count).joined(separator: "/")
     }
 
     private static func floorToHour(_ date: Date) -> Date {

@@ -110,6 +110,7 @@ struct DashboardView: View {
             statTiles(provider)
             planSection(provider)
             dailySection(provider)
+            projectSection(provider)
             modelSection(provider)
         }
     }
@@ -236,6 +237,68 @@ struct DashboardView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func projectSection(_ provider: ProviderData) -> some View {
+        // Providers whose usage comes from a plan API have no local sessions and
+        // therefore no project attribution — skip the section entirely for them.
+        let projects = provider.snapshot.projects
+        if projects.contains(where: { !$0.path.isEmpty }) {
+            let total = projects.reduce(0) { $0 + $1.totals.cost }
+            section(L.t("by_project_last_30_days")) {
+                VStack(spacing: 4) {
+                    projectHeaderRow
+                    ForEach(projects) { project in
+                        projectRow(project, total: total)
+                    }
+                }
+            }
+        }
+    }
+
+    private var projectHeaderRow: some View {
+        HStack {
+            Text(L.t("project")).frame(width: 150, alignment: .leading)
+            Spacer()
+            Text(L.t("messages")).frame(width: 70, alignment: .trailing)
+            Text(L.t("tokens")).frame(width: 70, alignment: .trailing)
+            Text(L.t("cost")).frame(width: 70, alignment: .trailing)
+            Text("%").frame(width: 44, alignment: .trailing)
+        }
+        .font(.caption2)
+        .foregroundStyle(.tertiary)
+    }
+
+    private func projectRow(_ project: ProjectUsage, total: Double) -> some View {
+        let share = total > 0 ? project.totals.cost / total : 0
+        return HStack {
+            Text(project.name)
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.head)
+                .frame(width: 150, alignment: .leading)
+                .help(project.path.isEmpty ? L.t("no_project") : project.path)
+            Spacer()
+            Group {
+                Text("\(project.totals.messages)").frame(width: 70, alignment: .trailing)
+                Text(Formatters.tokens(project.totals.totalTokens)).frame(width: 70, alignment: .trailing)
+            }
+            .font(.caption.monospacedDigit())
+            .foregroundStyle(.secondary)
+            Text(Formatters.cost(project.totals.cost))
+                .font(.caption.monospacedDigit())
+                .fontWeight(.medium)
+                .frame(width: 70, alignment: .trailing)
+            // lineLimit(1) is load-bearing: without it a two-digit share wraps
+            // in a narrow column and makes the row taller than its neighbours.
+            Text("\(Int((share * 100).rounded()))")
+                .font(.caption2.monospacedDigit())
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .frame(width: 44, alignment: .trailing)
+        }
+        .padding(.vertical, 2)
     }
 
     @ViewBuilder

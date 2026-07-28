@@ -90,9 +90,14 @@ final class UsageParser {
         let rid = (obj["requestId"] as? String) ?? ""
         let cost = Pricing.cost(model: model, input: t.input, output: t.output,
                                 cacheRead: t.read, w5m: t.w5m, w1h: t.w1h)
+        // The transcript directory name encodes the cwd but is not reversible
+        // (a "-" may be a path separator or part of a folder name), so the cwd
+        // recorded on the line is the only reliable source.
+        let project = ProjectResolver.root(for: (obj["cwd"] as? String) ?? "")
         return UsageEvent(key: mid + ":" + rid, ts: ts, model: model,
                           input: t.input, output: t.output, cacheRead: t.read,
-                          cacheWrite5m: t.w5m, cacheWrite1h: t.w1h, cost: cost)
+                          cacheWrite5m: t.w5m, cacheWrite1h: t.w1h, cost: cost,
+                          project: project)
     }
 
     private static func intVal(_ v: Any?) -> Int {

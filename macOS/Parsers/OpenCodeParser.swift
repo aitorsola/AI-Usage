@@ -27,13 +27,20 @@ struct OpenCodeParser {
         guard let db = open() else { return Result(events: [], installed: true) }
         defer { sqlite3_close(db) }
 
-        let sql = """
-        SELECT time_created, model, cost, tokens_input, tokens_output, \
-        tokens_reasoning, tokens_cache_read, tokens_cache_write FROM session;
-        """
+        let columns = "time_created, model, cost, tokens_input, tokens_output, " +
+            "tokens_reasoning, tokens_cache_read, tokens_cache_write"
+
+        // `directory` (used for per-project attribution) is absent from older
+        // OpenCode schemas. Fall back rather than lose all usage data.
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            return Result(events: [], installed: true)
+        var hasDirectory = true
+        if sqlite3_prepare_v2(db, "SELECT \(columns), directory FROM session;", -1, &stmt, nil) != SQLITE_OK {
+            sqlite3_finalize(stmt)
+            stmt = nil
+            hasDirectory = false
+            guard sqlite3_prepare_v2(db, "SELECT \(columns) FROM session;", -1, &stmt, nil) == SQLITE_OK else {
+                return Result(events: [], installed: true)
+            }
         }
         defer { sqlite3_finalize(stmt) }
 
@@ -52,6 +59,9 @@ struct OpenCodeParser {
             let reasoning = Int(sqlite3_column_int64(stmt, 5))
             let cacheRead = Int(sqlite3_column_int64(stmt, 6))
             let cacheWrite = Int(sqlite3_column_int64(stmt, 7))
+            let directory = hasDirectory
+                ? (sqlite3_column_text(stmt, 8).map { String(cString: $0) } ?? "")
+                : ""
             events.append(UsageEvent(key: "oc-\(index)-\(createdMs)",
                                      ts: ts,
                                      model: model,
@@ -60,7 +70,8 @@ struct OpenCodeParser {
                                      cacheRead: cacheRead,
                                      cacheWrite5m: cacheWrite,
                                      cacheWrite1h: 0,
-                                     cost: cost))
+                                     cost: cost,
+                                     project: ProjectResolver.root(for: directory)))
         }
         return Result(events: events, installed: true)
     }

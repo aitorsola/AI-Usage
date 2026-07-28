@@ -97,17 +97,28 @@ final class CodexParser {
         var events: [UsageEvent] = []
         var rates: RateSnapshot?
         var currentModel = "gpt-5"
+        var currentProject = ""
         var lineNo = 0
 
         text.enumerateLines { line, _ in
             lineNo += 1
-            if line.contains("\"model\""), line.contains("turn_context") || line.contains("session_meta") {
+            // `session_meta` (first line) and `turn_context` carry both the model
+            // and the cwd the session runs in.
+            if line.contains("\"session_meta\"") || line.contains("\"turn_context\"") {
                 if let obj = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any],
                    let payload = obj["payload"] as? [String: Any],
-                   let model = payload["model"] as? String, !model.isEmpty {
-                    currentModel = model
+                   // Codex records the kind at the top level on current versions
+                   // and inside the payload on others — accept either.
+                   let type = (obj["type"] as? String) ?? (payload["type"] as? String),
+                   type == "session_meta" || type == "turn_context" {
+                    if let model = payload["model"] as? String, !model.isEmpty {
+                        currentModel = model
+                    }
+                    if let cwd = payload["cwd"] as? String, !cwd.isEmpty {
+                        currentProject = ProjectResolver.root(for: cwd)
+                    }
+                    return
                 }
-                return
             }
             guard line.contains("\"token_count\"") else { return }
             guard let obj = (try? JSONSerialization.jsonObject(with: Data(line.utf8))) as? [String: Any],
@@ -139,7 +150,8 @@ final class CodexParser {
                 key: "\(url.lastPathComponent)#\(lineNo)",
                 ts: ts, model: currentModel,
                 input: uncached, output: output, cacheRead: cached,
-                cacheWrite5m: 0, cacheWrite1h: 0, cost: cost))
+                cacheWrite5m: 0, cacheWrite1h: 0, cost: cost,
+                project: currentProject))
         }
         return FileCacheEntry(mtime: mtime, size: size, events: events, rates: rates)
     }

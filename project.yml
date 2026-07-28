@@ -11,7 +11,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    MARKETING_VERSION: "1.4"
+    MARKETING_VERSION: "1.5"
     CURRENT_PROJECT_VERSION: "14"
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: "-"
@@ -43,8 +43,8 @@ targets:
       properties:
         CFBundleName: AI Usage
         CFBundleDisplayName: AI Usage
-        CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "14"
+        CFBundleShortVersionString: "1.5"
+        CFBundleVersion: "15"
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"
         NSHighResolutionCapable: true
@@ -74,8 +74,8 @@ targets:
       path: Signing/WidgetInfo.plist
       properties:
         CFBundleDisplayName: AI Usage
-        CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "14"
+        CFBundleShortVersionString: "1.5"
+        CFBundleVersion: "15"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
@@ -102,8 +102,8 @@ targets:
       properties:
         CFBundleName: AI Usage
         CFBundleDisplayName: AI Usage
-        CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "14"
+        CFBundleShortVersionString: "1.5"
+        CFBundleVersion: "15"
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -146,8 +146,8 @@ targets:
       properties:
         CFBundleName: AI Usage
         CFBundleDisplayName: AI Usage
-        CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "14"
+        CFBundleShortVersionString: "1.5"
+        CFBundleVersion: "15"
         WKApplication: true
         WKCompanionAppBundleIdentifier: dev.aitor.ai-usage
 
@@ -173,8 +173,8 @@ targets:
       path: Signing/WatchWidgetInfo.plist
       properties:
         CFBundleDisplayName: AI Usage
-        CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "14"
+        CFBundleShortVersionString: "1.5"
+        CFBundleVersion: "15"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
@@ -231,8 +231,8 @@ targets:
       path: Signing/iOSWidgetInfo.plist
       properties:
         CFBundleDisplayName: AI Usage
-        CFBundleShortVersionString: "1.4"
-        CFBundleVersion: "14"
+        CFBundleShortVersionString: "1.5"
+        CFBundleVersion: "15"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
