@@ -39,6 +39,14 @@ public struct WatchCredentials: Codable {
 
     public var isEmpty: Bool { anthropic == nil && openAI == nil && deepSeekKey == nil }
 
+    // Identity of the long-lived secrets: changes on a login, a logout and a
+    // rotated refresh token, but not on a plain access-token refresh. Only ever
+    // compared within one process lifetime (String hashing is seeded per
+    // launch), so it must not be persisted.
+    public var identity: Int {
+        "\(anthropic?.refresh ?? "")|\(openAI?.refresh ?? "")|\(deepSeekKey ?? "")".hashValue
+    }
+
     // The credentials currently stored on this device (phone side).
     public static func current() -> WatchCredentials {
         WatchCredentials(
@@ -73,6 +81,44 @@ public struct WatchCredentials: Codable {
         } else {
             DeepSeekKeyStore.delete()
         }
+    }
+
+    // Merge credentials received FROM the paired device. Unlike `apply()` this
+    // is never destructive: the peer may hold fewer providers than we do, and
+    // a missing one must not wipe a working session here.
+    //
+    // A provider is overwritten only when the incoming copy is strictly fresher
+    // — which is exactly the case that matters: the peer refreshed, the shared
+    // refresh token rotated, and our copy is now dead. Recovering from that is
+    // what stops a rotation on one device from forcing a re-login on the other.
+    @discardableResult
+    public func merge() -> Bool {
+        var changed = false
+        if let a = anthropic, Self.isFresher(a.expiresAt, than: AnthropicTokenStore.load()?.expiresAt) {
+            AnthropicTokenStore.save(AnthropicOAuth.OwnCredentials(
+                accessToken: a.access, refreshToken: a.refresh, expiresAt: a.expiresAt))
+            AuthFailureTracker.clear(AnthropicTokenStore.service)
+            changed = true
+        }
+        if let o = openAI, Self.isFresher(o.expiresAt, than: OpenAITokenStore.load()?.expiresAt) {
+            OpenAITokenStore.save(OpenAIOAuth.Credentials(
+                accessToken: o.access, refreshToken: o.refresh, expiresAt: o.expiresAt,
+                accountID: o.accountID, planType: o.planType, email: o.email))
+            AuthFailureTracker.clear(OpenAITokenStore.service)
+            changed = true
+        }
+        // A DeepSeek API key does not rotate, so it is only ever filled in.
+        if let key = deepSeekKey, DeepSeekKeyStore.load() == nil {
+            DeepSeekKeyStore.save(key)
+            changed = true
+        }
+        return changed
+    }
+
+    static func isFresher(_ incoming: Date?, than stored: Date?) -> Bool {
+        guard let incoming else { return false }
+        guard let stored else { return true }
+        return incoming > stored
     }
 }
 

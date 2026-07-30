@@ -35,6 +35,30 @@ extension PlatformHealth {
     var color: Color { Color(hex: colorHex) }
 }
 
+// A gauge bar drawn by hand instead of with ProgressView. On macOS a linear
+// ProgressView is backed by NSProgressIndicator and its `.tint` does not
+// survive view reuse reliably: a bar that re-rendered mid-refresh could fall
+// back to the system accent colour, so two bars sharing one tint ended up
+// different colours. Capsules keep the colour deterministic and match how the
+// widgets and the watch app already draw the same gauge.
+struct CapsuleBar: View {
+    let value: Double          // 0…100
+    let tint: Color
+    var height: CGFloat = 6
+
+    var body: some View {
+        let fraction = min(max(value, 0), 100) / 100
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(tint.opacity(0.18))
+                Capsule().fill(tint)
+                    .frame(width: max(3, geo.size.width * fraction))
+            }
+        }
+        .frame(height: height)
+    }
+}
+
 struct GaugeRow: View {
     let gauge: PlanGauge
     var tint: Color = .accentColor
@@ -54,8 +78,7 @@ struct GaugeRow: View {
                     .font(.caption.monospacedDigit())
                     .fontWeight(.semibold)
             }
-            ProgressView(value: shown, total: 100)
-                .tint(color(used: used))
+            CapsuleBar(value: shown, tint: color(used: used))
             if let resets = gauge.resetsAt {
                 Text(Formatters.resetDescription(resets))
                     .font(.caption2)
@@ -96,8 +119,8 @@ struct MoneyLimitRow: View {
             }
             if let used = usedPercent {
                 let clamped = min(max(used, 0), 100)
-                ProgressView(value: showRemaining ? 100 - clamped : clamped, total: 100)
-                    .tint(color(used: clamped))
+                CapsuleBar(value: showRemaining ? 100 - clamped : clamped,
+                           tint: color(used: clamped))
             }
             if let resets = resetsAt {
                 Text(Formatters.resetDescription(resets))

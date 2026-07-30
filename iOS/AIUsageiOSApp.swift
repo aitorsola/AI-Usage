@@ -104,6 +104,26 @@ private struct ProviderCard: View {
     }
 }
 
+// Drawn by hand rather than with ProgressView so the tint is deterministic and
+// the bar matches the widgets and the watch app — see CapsuleBar on macOS.
+private struct CapsuleBar: View {
+    let value: Double          // 0…100
+    let tint: Color
+    var height: CGFloat = 6
+
+    var body: some View {
+        let fraction = min(max(value, 0), 100) / 100
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(tint.opacity(0.18))
+                Capsule().fill(tint)
+                    .frame(width: max(3, geo.size.width * fraction))
+            }
+        }
+        .frame(height: height)
+    }
+}
+
 private struct GaugeBar: View {
     let gauge: PlanGauge
     var tint: Color
@@ -121,7 +141,7 @@ private struct GaugeBar: View {
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
-            ProgressView(value: shown, total: 100).tint(color(used: used))
+            CapsuleBar(value: shown, tint: color(used: used))
             if let resets = gauge.resetsAt {
                 Text(Formatters.resetCompact(resets))
                     .font(.caption2)

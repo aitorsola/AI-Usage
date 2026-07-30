@@ -65,10 +65,19 @@ public enum PlanFetcher {
             AnthropicOAuth.refresh(refreshToken: rt) { creds, error in
                 TokenRefreshLock.release(lock)
                 if let creds {
+                    AuthFailureTracker.clear(AnthropicTokenStore.service)
                     done(creds.accessToken, nil, nil, false)
                 } else if OAuthError.isAuthFailure(error) {
-                    // Refresh token genuinely rejected → real re-login needed.
-                    done(nil, nil, L.t("session_expired_sign_in_again"), true)
+                    // Rejected — but that alone does not mean the session died:
+                    // the paired watch refreshes the same token family and may
+                    // have just rotated this copy away. Demand a re-login only
+                    // once the rejection persists; otherwise keep the session so
+                    // the peer's fresh copy can land and recover it.
+                    if AuthFailureTracker.record(AnthropicTokenStore.service) {
+                        done(nil, nil, L.t("session_expired_sign_in_again"), true)
+                    } else {
+                        done(nil, nil, error ?? L.t("no_session"), false)
+                    }
                 } else {
                     // Transient (network / server) failure: keep the session and
                     // retry next cycle instead of forcing a re-login.

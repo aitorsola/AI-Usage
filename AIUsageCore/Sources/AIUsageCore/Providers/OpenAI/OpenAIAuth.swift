@@ -271,9 +271,17 @@ public enum OpenAIUsageFetcher {
                                 email: current.email) { creds, error in
                 TokenRefreshLock.release(lock)
                 if let creds {
+                    AuthFailureTracker.clear(OpenAITokenStore.service)
                     done(creds, nil, false)
                 } else if OAuthError.isAuthFailure(error) {
-                    done(nil, L.t("session_expired_sign_in_again"), true)
+                    // See PlanFetcher: the paired watch shares this token family
+                    // and may have rotated our copy away, so a single rejection
+                    // is not a dead session.
+                    if AuthFailureTracker.record(OpenAITokenStore.service) {
+                        done(nil, L.t("session_expired_sign_in_again"), true)
+                    } else {
+                        done(nil, error ?? L.t("no_session"), false)
+                    }
                 } else {
                     // Transient failure: keep the session, retry next cycle.
                     done(nil, error ?? L.t("no_session"), false)

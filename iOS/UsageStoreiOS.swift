@@ -28,6 +28,9 @@ final class UsageStoreiOS: ObservableObject {
     private var timer: Timer?
 
     init() {
+        // The watch hands back credentials it rotated; refetch with them so a
+        // session that had started failing recovers without a re-login.
+        WatchSync.shared.onCredentialsMerged = { [weak self] in self?.refresh() }
         WatchSync.shared.activate()
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in

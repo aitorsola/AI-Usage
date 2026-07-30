@@ -9,11 +9,20 @@ import Foundation
 import WatchConnectivity
 import AIUsageCore
 
-// Pushes the ready-to-render widget snapshot to the paired Apple Watch. The
-// watch is a pure mirror: providers, gauges and the remaining/used mode all
-// come decided from the phone — it never fetches or chooses anything itself.
+// Pushes the ready-to-render widget snapshot to the paired Apple Watch, which
+// renders it as the phone decided (providers, gauges, remaining/used mode).
+//
+// The watch also fetches on its own so the complication stays fresh with the
+// phone away, which means BOTH devices refresh the same OAuth token family —
+// and the provider rotates the refresh token on every refresh. So credentials
+// travel in both directions: whoever rotated last hands its copy to the other,
+// which merges it instead of treating its own dead copy as a lost session.
 final class WatchSync: NSObject, WCSessionDelegate {
     static let shared = WatchSync()
+
+    /// Called after credentials from the watch replaced fresher ones here, so
+    /// the store can retry a fetch that had been failing.
+    var onCredentialsMerged: (() -> Void)?
 
     private var lastComplicationFingerprint: WidgetSnapshot?
     private var lastCredentialIdentity: Int?
@@ -38,7 +47,7 @@ final class WatchSync: NSObject, WCSessionDelegate {
         // and only when the long-lived secrets change (a login/logout or a
         // rotated refresh token), not on every access-token refresh.
         let creds = WatchCredentials.current()
-        let identity = "\(creds.anthropic?.refresh ?? "")|\(creds.openAI?.refresh ?? "")|\(creds.deepSeekKey ?? "")".hashValue
+        let identity = creds.identity
         if identity != lastCredentialIdentity, let credData = try? JSONEncoder().encode(creds) {
             lastCredentialIdentity = identity
             session.transferUserInfo(["credentials": credData])
@@ -59,6 +68,19 @@ final class WatchSync: NSObject, WCSessionDelegate {
 
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
                  error: Error?) {}
+
+    // Credentials coming back from the watch: it refreshed on its own and the
+    // refresh token rotated, so our copy is dead. Merging is non-destructive —
+    // only strictly fresher providers are taken, and nothing is ever deleted.
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        guard let data = userInfo["credentials"] as? Data,
+              let creds = try? JSONDecoder().decode(WatchCredentials.self, from: data),
+              creds.merge() else { return }
+        // Don't hand straight back what we just took.
+        lastCredentialIdentity = WatchCredentials.current().identity
+        DispatchQueue.main.async { [weak self] in self?.onCredentialsMerged?() }
+    }
+
     func sessionDidBecomeInactive(_ session: WCSession) {}
     func sessionDidDeactivate(_ session: WCSession) {
         session.activate()

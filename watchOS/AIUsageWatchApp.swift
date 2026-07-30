@@ -53,6 +53,7 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
     @Published var snapshot: WidgetSnapshot?
 
     private var refreshing = false
+    private var lastCredentialIdentity: Int?
 
     override init() {
         super.init()
@@ -102,6 +103,7 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
             self.show(SnapshotBuilder.network(anthropic: claude, openAI: openAI,
                                               deepSeek: deepSeek, credentialed: credentialed,
                                               showRemaining: showRemaining))
+            self.syncCredentialsToPhone()
             completion?()
         }
     }
@@ -123,6 +125,23 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 12) { finishOnce() }
             }
         }
+    }
+
+    // The watch refreshes its own tokens, and the provider rotates the refresh
+    // token when it does — leaving the iPhone holding a copy that is now dead.
+    // Hand the rotated credentials back so the phone recovers silently instead
+    // of asking the user to sign in again.
+    private func syncCredentialsToPhone() {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+        let creds = WatchCredentials.current()
+        guard !creds.isEmpty else { return }
+        let identity = creds.identity
+        guard identity != lastCredentialIdentity,
+              let data = try? JSONEncoder().encode(creds) else { return }
+        lastCredentialIdentity = identity
+        session.transferUserInfo(["credentials": data])
     }
 
     static func scheduleBackgroundRefresh() {
@@ -150,6 +169,9 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
         if let credData = payload["credentials"] as? Data,
            let creds = try? JSONDecoder().decode(WatchCredentials.self, from: credData) {
             creds.apply()
+            // Remember what we just stored so the next refresh doesn't bounce
+            // the phone's own credentials straight back to it.
+            lastCredentialIdentity = WatchCredentials.current().identity
         }
         guard let data = payload["snapshot"] as? Data,
               let snap = try? JSONDecoder().decode(WidgetSnapshot.self, from: data) else { return }
