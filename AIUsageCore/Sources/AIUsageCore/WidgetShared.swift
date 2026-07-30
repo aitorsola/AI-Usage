@@ -126,6 +126,12 @@ public enum WidgetShared {
 
     public static func save(_ snapshot: WidgetSnapshot) {
         guard let url = fileURL, let data = try? JSONEncoder().encode(snapshot) else { return }
+        // A cleaner utility can delete the whole group container while the app
+        // is running — it happened, and every write after it failed silently,
+        // freezing the macOS widget for days while the menu bar stayed fresh.
+        // Recreate the directory rather than assume the system keeps it alive.
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
         try? data.write(to: url, options: .atomic)
     }
 

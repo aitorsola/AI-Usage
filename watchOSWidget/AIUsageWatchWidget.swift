@@ -36,9 +36,12 @@ struct WatchSnapshotProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WatchEntry>) -> Void) {
         // The complication fetches on its own, independent of the watch app.
+        // 30 min, not 15: policy-driven refreshes draw from the same 40-70/day
+        // budget as app-requested reloads — asking for 96/day meant chronod
+        // stopped honouring anything and the rings froze between app launches.
         WidgetRefresh.snapshot { snap in
             let entry = WatchEntry(date: Date(), snapshot: snap)
-            completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(15 * 60))))
+            completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(30 * 60))))
         }
     }
 }

@@ -135,7 +135,14 @@ final class UsageStore: ObservableObject {
 
     private var lastReloadFingerprint: WidgetSnapshot?
     private var lastReloadAt: Date?
-    private static let widgetReloadFloor: TimeInterval = 300   // ≤5 min stale
+    // WidgetKit grants a widget roughly 40-70 reloads per DAY. The floor was
+    // once 5 minutes (~288/day): chronod honoured the morning's reloads, then
+    // ignored the rest — the widget froze for the day while the snapshot on
+    // disk stayed perfectly fresh. Content changes (the fingerprint) still
+    // reload immediately; the floor only keeps the countdown text from
+    // pinning, and the widget's own 30-minute timeline policy re-reads the
+    // snapshot between floors anyway.
+    private static let widgetReloadFloor: TimeInterval = 1800
 
     func updateWidgetSnapshot() {
         let defaults = UserDefaults.standard
@@ -172,11 +179,10 @@ final class UsageStore: ObservableObject {
             date: lastUpdated
         )
         WidgetShared.save(snapshot)
-        // The menu bar app runs continuously, so IT drives the widget rather
-        // than WidgetKit's background timeline policy, which barely fires for
-        // an agent app. Reload on any real content change, and at least every
-        // few minutes regardless so the reset countdown never freezes — a
-        // stable integer % must not pin a days-old render.
+        // The menu bar app runs continuously, so IT drives the widget: the
+        // snapshot is saved on every refresh, but reloads are precious (see
+        // widgetReloadFloor) — spend one only on a real content change, plus
+        // a slow heartbeat so the reset countdown never pins for good.
         let fingerprint = snapshot.reloadFingerprint
         let now = Date()
         let overdue = lastReloadAt.map { now.timeIntervalSince($0) >= Self.widgetReloadFloor } ?? true

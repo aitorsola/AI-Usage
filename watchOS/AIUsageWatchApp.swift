@@ -54,6 +54,7 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
 
     private var refreshing = false
     private var lastCredentialIdentity: Int?
+    private var lastReloadFingerprint: WidgetSnapshot?
 
     override init() {
         super.init()
@@ -185,7 +186,16 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
                                                      : LimitDisplay.used.rawValue,
                                   forKey: SettingsKeys.limitDisplay)
         WidgetShared.save(snap)
-        WidgetCenter.shared.reloadAllTimelines()
+        // Reloads are budgeted (~40-70/day) and this runs on every phone push
+        // AND every self-refresh: spending one each time exhausted the budget,
+        // after which the complication only repainted while the app was open.
+        // The rings render integer percentages, all captured by the
+        // fingerprint — reloading on fingerprint change loses nothing.
+        let fingerprint = snap.reloadFingerprint
+        if fingerprint != lastReloadFingerprint {
+            lastReloadFingerprint = fingerprint
+            WidgetCenter.shared.reloadAllTimelines()
+        }
     }
 }
 

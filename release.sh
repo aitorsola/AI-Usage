@@ -118,6 +118,12 @@ echo "→ Notarizing .dmg…"
 xcrun notarytool submit "$DMG" --keychain-profile "$NOTARY_PROFILE" --wait
 xcrun stapler staple "$DMG"
 
+# La copia intermedia queda registrada en LaunchServices durante el build y
+# compite con /Applications por el bundle ID (chronod puede resolver el widget
+# contra ella). Desregístrala; el .dmg ya está empaquetado.
+LSREG="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+"$LSREG" -u "$BUILT" >/dev/null 2>&1 || true
+
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$BUILT/Contents/Info.plist" 2>/dev/null || echo "1.0")
 echo "✓ Done → $DMG"
 echo "  Verify:  spctl -a -t open --context context:primary-signature -v \"$DMG\""

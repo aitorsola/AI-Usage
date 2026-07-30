@@ -59,4 +59,12 @@ codesign --verify --deep --strict --verbose=1 "$BUILT" 2>&1 | tail -3 || true
 echo "→ Instalando en /Applications/$APP_NAME.app"
 rm -rf "/Applications/$APP_NAME.app"
 cp -R "$BUILT" "/Applications/$APP_NAME.app"
+
+# El proceso del widget sobrevive al reemplazo del bundle (llegó a correr 10
+# días desde un binario borrado): mátalo para que chronod relance el appex
+# recién instalado. Y desregistra la copia intermedia de LaunchServices, que
+# si no compite con /Applications por el mismo bundle ID.
+pkill -f "AIUsageWidget.appex/Contents/MacOS/AIUsageWidget" 2>/dev/null || true
+LSREG="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+"$LSREG" -u "$BUILT" >/dev/null 2>&1 || true
 echo "✓ Instalada. Widget embebido en Contents/PlugIns/AIUsageWidget.appex"
