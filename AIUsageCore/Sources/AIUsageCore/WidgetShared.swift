@@ -115,13 +115,77 @@ public extension WidgetSnapshot {
         }
         return copy
     }
+
+    /// The fingerprint as a token that is stable ACROSS processes and launches,
+    /// so the host app can compare what it wants drawn against what the
+    /// extension actually drew. `hashValue` cannot be used for this: Swift
+    /// seeds string hashing per launch, so it differs between the app and the
+    /// widget process for identical content.
+    var reloadDigest: String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(reloadFingerprint) else { return "" }
+        // FNV-1a: no dependency, deterministic everywhere, and collisions here
+        // only cost a missed repaint until the next content change.
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in data {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x0000_0100_0000_01B3
+        }
+        return String(hash, radix: 16)
+    }
+}
+
+/// Where the content a widget drew came from — the one thing that is invisible
+/// from outside the extension when a complication refuses to move.
+public enum WidgetRenderSource: String, Codable {
+    case appSnapshot    // reused the host app's snapshot (the normal path)
+    case selfFetched    // the app's snapshot was stale, so the extension fetched
+    case fallback       // its own fetch timed out → last known snapshot
+    case placeholder    // nothing to show: no snapshot AND no credentials
+}
+
+/// The three entry points WidgetKit drives in an extension. Which of them has
+/// EVER run is the decisive diagnostic for a dead complication: the gallery
+/// preview comes from `placeholder`/`getSnapshot` (synchronous, no network),
+/// the face render from `getTimeline`. A blank preview with zero placeholder
+/// pings means chronod is not launching the extension at all — no code path
+/// of ours can cause that; it is registration/throttling state on the device.
+public enum WidgetPhase: String, Codable, CaseIterable {
+    case placeholder, snapshot, timeline
+}
+
+public struct WidgetPing: Codable, Hashable {
+    public var count: Int
+    public var last: Date
+
+    public var age: TimeInterval { Date().timeIntervalSince(last) }
+}
+
+/// What a widget/complication last handed to WidgetKit. Written by the
+/// extension, read by the app: the only way to tell "WidgetKit never ran my
+/// extension" from "it ran and drew the wrong thing".
+public struct WidgetRenderRecord: Codable, Hashable {
+    public var date: Date
+    public var digest: String
+    public var providerCount: Int
+    public var source: WidgetRenderSource
+
+    public var age: TimeInterval { Date().timeIntervalSince(date) }
 }
 
 public enum WidgetShared {
+    private static var containerURL: URL? {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)
+    }
+
     public static var fileURL: URL? {
-        FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier)?
-            .appendingPathComponent("snapshot.json")
+        containerURL?.appendingPathComponent("snapshot.json")
+    }
+
+    /// Where the extension records the digest of what it last rendered.
+    private static var renderedURL: URL? {
+        containerURL?.appendingPathComponent("rendered.txt")
     }
 
     public static func save(_ snapshot: WidgetSnapshot) {
@@ -130,13 +194,78 @@ public enum WidgetShared {
         // is running — it happened, and every write after it failed silently,
         // freezing the macOS widget for days while the menu bar stayed fresh.
         // Recreate the directory rather than assume the system keeps it alive.
-        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
-                                                 withIntermediateDirectories: true)
-        try? data.write(to: url, options: .atomic)
+        write(data, to: url)
     }
 
     public static func load() -> WidgetSnapshot? {
         guard let url = fileURL, let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(WidgetSnapshot.self, from: data)
+    }
+
+    /// Called by a widget/complication from `getTimeline`: records the content
+    /// it just handed to WidgetKit.
+    ///
+    /// Requesting a reload is not the same as getting one — WidgetKit silently
+    /// drops requests once the daily budget is spent. The stores used to record
+    /// the request as if it had been honoured, so a dropped one was never
+    /// retried and the complication kept the old render until the numbers moved
+    /// again. This is the acknowledgement that closes that loop.
+    public static func recordRendered(_ snapshot: WidgetSnapshot,
+                                      source: WidgetRenderSource = .appSnapshot) {
+        guard let url = renderedURL,
+              let data = try? JSONEncoder().encode(
+                WidgetRenderRecord(date: Date(), digest: snapshot.reloadDigest,
+                                   providerCount: snapshot.providers.count, source: source))
+        else { return }
+        write(data, to: url)
+    }
+
+    /// What the extension last rendered, or nil if it never ran — which is
+    /// itself the answer when a complication will not move.
+    public static func lastRender() -> WidgetRenderRecord? {
+        guard let url = renderedURL, let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(WidgetRenderRecord.self, from: data)
+    }
+
+    /// Digest of what the extension last rendered, or nil if it never ran (or
+    /// the container was wiped) — which counts as "does not match", so the app
+    /// asks for a reload.
+    public static func renderedDigest() -> String? { lastRender()?.digest }
+
+    // MARK: - Phase pings
+
+    private static var pingsURL: URL? {
+        containerURL?.appendingPathComponent("pings.json")
+    }
+
+    /// Marks that WidgetKit invoked the given entry point. Diagnostics only:
+    /// a lost update under concurrent writes costs one count, never a wrong
+    /// conclusion — the question these answer is "has this phase EVER run,
+    /// and when was the last time".
+    public static func recordPing(_ phase: WidgetPhase) {
+        guard let url = pingsURL else { return }
+        var all = pings()
+        let previous = all[phase]
+        all[phase] = WidgetPing(count: (previous?.count ?? 0) + 1, last: Date())
+        let raw = Dictionary(uniqueKeysWithValues: all.map { ($0.key.rawValue, $0.value) })
+        guard let data = try? JSONEncoder().encode(raw) else { return }
+        write(data, to: url)
+    }
+
+    public static func pings() -> [WidgetPhase: WidgetPing] {
+        guard let url = pingsURL, let data = try? Data(contentsOf: url),
+              let raw = try? JSONDecoder().decode([String: WidgetPing].self, from: data)
+        else { return [:] }
+        var out: [WidgetPhase: WidgetPing] = [:]
+        for (key, value) in raw {
+            if let phase = WidgetPhase(rawValue: key) { out[phase] = value }
+        }
+        return out
+    }
+
+    private static func write(_ data: Data, to url: URL) {
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        try? data.write(to: url, options: .atomic)
     }
 }

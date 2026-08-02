@@ -49,7 +49,7 @@ final class UsageStore: ObservableObject {
         hasLoaded = true
         updateWidgetSnapshot()
     }
-
+    
     func refresh() {
         DispatchQueue.main.async {
             guard !self.refreshing else { return }
@@ -133,16 +133,14 @@ final class UsageStore: ObservableObject {
 
     // MARK: - Widget snapshot
 
-    private var lastReloadFingerprint: WidgetSnapshot?
-    private var lastReloadAt: Date?
-    // WidgetKit grants a widget roughly 40-70 reloads per DAY. The floor was
-    // once 5 minutes (~288/day): chronod honoured the morning's reloads, then
-    // ignored the rest — the widget froze for the day while the snapshot on
-    // disk stayed perfectly fresh. Content changes (the fingerprint) still
-    // reload immediately; the floor only keeps the countdown text from
-    // pinning, and the widget's own 30-minute timeline policy re-reads the
-    // snapshot between floors anyway.
-    private static let widgetReloadFloor: TimeInterval = 1800
+    private var lastReloadRequestedAt: Date?
+    // WidgetKit grants a widget roughly 40-70 reloads per DAY, so the app asks
+    // for one only while the widget's own render disagrees with the snapshot on
+    // disk — never on the 60 s refresh cadence, which at ~288/day made chronod
+    // honour the morning and ignore the rest of the day. This floor spaces out
+    // the retries for the case that matters: a request WidgetKit DROPPED, which
+    // it never reports, and which the old code recorded as if it had landed.
+    private static let widgetReloadFloor: TimeInterval = 600
 
     func updateWidgetSnapshot() {
         let defaults = UserDefaults.standard
@@ -181,16 +179,15 @@ final class UsageStore: ObservableObject {
         WidgetShared.save(snapshot)
         // The menu bar app runs continuously, so IT drives the widget: the
         // snapshot is saved on every refresh, but reloads are precious (see
-        // widgetReloadFloor) — spend one only on a real content change, plus
-        // a slow heartbeat so the reset countdown never pins for good.
-        let fingerprint = snapshot.reloadFingerprint
+        // widgetReloadFloor) — spend one only while the widget's own render is
+        // behind the snapshot, and keep asking until it catches up.
+        guard snapshot.reloadDigest != WidgetShared.renderedDigest() else { return }
         let now = Date()
-        let overdue = lastReloadAt.map { now.timeIntervalSince($0) >= Self.widgetReloadFloor } ?? true
-        if fingerprint != lastReloadFingerprint || overdue {
-            lastReloadFingerprint = fingerprint
-            lastReloadAt = now
-            WidgetCenter.shared.reloadAllTimelines()
+        if let last = lastReloadRequestedAt, now.timeIntervalSince(last) < Self.widgetReloadFloor {
+            return
         }
+        lastReloadRequestedAt = now
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     private func wsProvider(_ data: ProviderData) -> WSProvider {

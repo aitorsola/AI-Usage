@@ -26,20 +26,35 @@ struct WatchEntry: TimelineEntry {
 }
 
 struct WatchSnapshotProvider: TimelineProvider {
+    // Each entry point pings the shared container. The gallery preview is
+    // produced by placeholder/getSnapshot, the face render by getTimeline —
+    // so which pings exist tells apart "chronod never launches the extension"
+    // (blank picker, nothing we can fix in code) from "it runs but never gets
+    // a timeline". The watch app surfaces these under "Complicación".
     func placeholder(in context: Context) -> WatchEntry {
-        WatchEntry(date: Date(), snapshot: .placeholder)
+        WidgetShared.recordPing(.placeholder)
+        return WatchEntry(date: Date(), snapshot: .placeholder)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (WatchEntry) -> Void) {
+        WidgetShared.recordPing(.snapshot)
         completion(WatchEntry(date: Date(), snapshot: WidgetShared.load() ?? .placeholder))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WatchEntry>) -> Void) {
+        WidgetShared.recordPing(.timeline)
         // The complication fetches on its own, independent of the watch app.
         // 30 min, not 15: policy-driven refreshes draw from the same 40-70/day
         // budget as app-requested reloads — asking for 96/day meant chronod
         // stopped honouring anything and the rings froze between app launches.
-        WidgetRefresh.snapshot { snap in
+        WidgetRefresh.snapshot { snap, source in
+            // Tell the watch app what we are drawing, and from where: it only
+            // spends a reload when this disagrees with the snapshot it has,
+            // which is how a request WidgetKit dropped gets asked for again
+            // instead of leaving the rings frozen. The record is also the only
+            // evidence available when the complication never moves at all —
+            // the watch app surfaces it under "Complicación".
+            WidgetShared.recordRendered(snap, source: source)
             let entry = WatchEntry(date: Date(), snapshot: snap)
             completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(30 * 60))))
         }
@@ -130,6 +145,11 @@ struct AIUsageWatchWidget: Widget {
         }
         .configurationDisplayName("AI Usage")
         .description(L.t("widget_description"))
+        // Declaring accessoryCircular is enough: chronod registers the widget
+        // for the X-Large circular slot too (its descriptor reads
+        // "accessoryCircularExtraLarge, accessoryCircular"), and that family has
+        // no public WidgetFamily case to name here. The rings are drawn in
+        // relative units, so they scale to that slot unchanged.
         .supportedFamilies([.accessoryCircular])
     }
 }

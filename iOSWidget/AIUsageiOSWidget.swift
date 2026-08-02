@@ -27,16 +27,22 @@ struct AIUsageEntry: TimelineEntry {
 
 struct AIUsageiOSProvider: TimelineProvider {
     func placeholder(in context: Context) -> AIUsageEntry {
-        AIUsageEntry(date: Date(), snapshot: .placeholder)
+        WidgetShared.recordPing(.placeholder)
+        return AIUsageEntry(date: Date(), snapshot: .placeholder)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (AIUsageEntry) -> Void) {
+        WidgetShared.recordPing(.snapshot)
         completion(AIUsageEntry(date: Date(), snapshot: WidgetShared.load() ?? .placeholder))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<AIUsageEntry>) -> Void) {
+        WidgetShared.recordPing(.timeline)
         // Fetch on our own — the iPhone app need not be open.
-        WidgetRefresh.snapshot { snap in
+        WidgetRefresh.snapshot { snap, source in
+            // Acknowledge what we drew so the app can tell a reload it asked
+            // for from one WidgetKit quietly dropped.
+            WidgetShared.recordRendered(snap, source: source)
             let entry = AIUsageEntry(date: Date(), snapshot: snap)
             completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(15 * 60))))
         }

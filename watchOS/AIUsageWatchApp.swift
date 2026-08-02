@@ -53,8 +53,18 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
     @Published var snapshot: WidgetSnapshot?
 
     private var refreshing = false
+    private var refreshGeneration = 0
     private var lastCredentialIdentity: Int?
-    private var lastReloadFingerprint: WidgetSnapshot?
+    private var lastReloadRequestedAt: Date?
+
+    // A fetch that never calls back must not pin `refreshing` forever: that is
+    // exactly what a blocked cross-process token lock did, and from then on
+    // every foreground open and every background refresh returned instantly.
+    // Longer than the providers' own 15 s request timeouts plus the token lock
+    // wait, so it only ever fires on a genuine hang.
+    private static let refreshWatchdog: TimeInterval = 45
+    // How long before a reload WidgetKit ignored is asked for again.
+    private static let reloadRetryFloor: TimeInterval = 300
 
     override init() {
         super.init()
@@ -78,6 +88,18 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
     func refresh(completion: (() -> Void)? = nil) {
         guard !refreshing, hasCredentials else { completion?(); return }
         refreshing = true
+        refreshGeneration &+= 1
+        let generation = refreshGeneration
+
+        // Both arms below run on the main queue, so this settles without a lock.
+        var settled = false
+        func settle(_ apply: () -> Void) {
+            guard !settled, generation == self.refreshGeneration else { return }
+            settled = true
+            self.refreshing = false
+            apply()
+            completion?()
+        }
 
         let group = DispatchGroup()
         var claude = PlanStatus(needsLogin: true)
@@ -92,20 +114,24 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
         if DeepSeekKeyStore.load() != nil {
             group.enter(); DeepSeekFetcher.fetch { deepSeek = $0; group.leave() }
         }
-        group.notify(queue: .main) { [weak self] in
-            guard let self else { completion?(); return }
-            self.refreshing = false
-            let showRemaining = (UserDefaults.standard.string(forKey: SettingsKeys.limitDisplay)
-                ?? LimitDisplay.remaining.rawValue) != LimitDisplay.used.rawValue
-            var credentialed: Set<ProviderKind> = []
-            if AnthropicTokenStore.load() != nil { credentialed.insert(.anthropic) }
-            if OpenAITokenStore.load() != nil { credentialed.insert(.openAI) }
-            if DeepSeekKeyStore.load() != nil { credentialed.insert(.deepSeek) }
-            self.show(SnapshotBuilder.network(anthropic: claude, openAI: openAI,
-                                              deepSeek: deepSeek, credentialed: credentialed,
-                                              showRemaining: showRemaining))
-            self.syncCredentialsToPhone()
-            completion?()
+        group.notify(queue: .main) {
+            settle {
+                let showRemaining = (UserDefaults.standard.string(forKey: SettingsKeys.limitDisplay)
+                    ?? LimitDisplay.remaining.rawValue) != LimitDisplay.used.rawValue
+                var credentialed: Set<ProviderKind> = []
+                if AnthropicTokenStore.load() != nil { credentialed.insert(.anthropic) }
+                if OpenAITokenStore.load() != nil { credentialed.insert(.openAI) }
+                if DeepSeekKeyStore.load() != nil { credentialed.insert(.deepSeek) }
+                self.show(SnapshotBuilder.network(anthropic: claude, openAI: openAI,
+                                                  deepSeek: deepSeek, credentialed: credentialed,
+                                                  showRemaining: showRemaining))
+                self.syncCredentialsToPhone()
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.refreshWatchdog) {
+            // Drop the stuck attempt and let the next cycle try again, rather
+            // than leaving the store unable to refresh for good.
+            settle {}
         }
     }
 
@@ -186,16 +212,26 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
                                                      : LimitDisplay.used.rawValue,
                                   forKey: SettingsKeys.limitDisplay)
         WidgetShared.save(snap)
-        // Reloads are budgeted (~40-70/day) and this runs on every phone push
-        // AND every self-refresh: spending one each time exhausted the budget,
-        // after which the complication only repainted while the app was open.
-        // The rings render integer percentages, all captured by the
-        // fingerprint — reloading on fingerprint change loses nothing.
-        let fingerprint = snap.reloadFingerprint
-        if fingerprint != lastReloadFingerprint {
-            lastReloadFingerprint = fingerprint
-            WidgetCenter.shared.reloadAllTimelines()
+        requestReloadIfStale(snap)
+    }
+
+    // Reloads are budgeted (~40-70/day) and this runs on every phone push AND
+    // every self-refresh, so one per call exhausted the budget. But gating on
+    // "did the content change since the last reload we ASKED for" was worse in
+    // its own way: WidgetKit drops requests once the budget is spent, and the
+    // dropped one was recorded as delivered — so the change was never asked for
+    // again and the complication kept a stale render even with the app open.
+    //
+    // Compare against what the complication actually drew (it records that from
+    // getTimeline) and keep asking, slowly, until the two agree.
+    private func requestReloadIfStale(_ snap: WidgetSnapshot) {
+        guard snap.reloadDigest != WidgetShared.renderedDigest() else { return }
+        let now = Date()
+        if let last = lastReloadRequestedAt, now.timeIntervalSince(last) < Self.reloadRetryFloor {
+            return
         }
+        lastReloadRequestedAt = now
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }
 
@@ -210,6 +246,7 @@ struct WatchRootView: View {
                         ForEach(snap.providers, id: \.name) { provider in
                             ProviderCell(provider: provider, showRemaining: snap.showRemaining)
                         }
+                        ComplicationStatusCell(appSnapshot: snap)
                     }
                     .listStyle(.carousel)
                 } else {
@@ -225,6 +262,85 @@ struct WatchRootView: View {
                 }
             }
             .navigationTitle("AI Usage")
+        }
+    }
+}
+
+// Whether the complication is actually being run by WidgetKit, and what it drew
+// the last time it was. Everything else about a stuck complication is invisible
+// from here: the app can request reloads all day and never learn that WidgetKit
+// dropped every one of them, or that the extension is drawing the placeholder
+// because it cannot reach the shared container.
+private struct ComplicationStatusCell: View {
+    let appSnapshot: WidgetSnapshot
+
+    var body: some View {
+        let render = WidgetShared.lastRender()
+        let pings = WidgetShared.pings()
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Image(systemName: "circle.dotted.circle")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Text(L.t("complication")).font(.headline)
+            }
+            // One row per WidgetKit entry point. The pattern is the diagnosis:
+            // all "—"        → chronod never launches the extension (registro).
+            // gallery only   → it runs, but no face slot asks for a timeline.
+            // timeline stale → reload requests are being dropped (budget).
+            row(L.t("phase_gallery"), pingText(pings[.placeholder], pings[.snapshot]))
+            row(L.t("phase_timeline"), pingText(pings[.timeline]))
+            if let render {
+                row(L.t("last_drawn"), Self.elapsed(render.age))
+                row(L.t("source"), Self.sourceLabel(render.source))
+                row(L.t("providers"), "\(render.providerCount)")
+                let inSync = render.digest == appSnapshot.reloadDigest
+                Text(inSync ? L.t("complication_in_sync") : L.t("complication_behind"))
+                    .font(.caption2)
+                    .foregroundStyle(inSync ? Color(hex: "#34C759") : Color(hex: "#FF9500"))
+                    .lineLimit(2)
+            } else {
+                // No render record: getTimeline has never completed since this
+                // build was installed. Combined with the phase rows above this
+                // pinpoints where the pipeline dies.
+                Text(L.t("complication_never_ran"))
+                    .font(.caption2)
+                    .foregroundStyle(Color(hex: "#FF3B30"))
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    // "12 × hace 3 min", or "—" if the phase never ran. When two phases feed
+    // one row (the gallery pair) the freshest one wins.
+    private func pingText(_ candidates: WidgetPing?...) -> String {
+        let best = candidates.compactMap { $0 }.min { $0.age < $1.age }
+        guard let best else { return "—" }
+        return "\(best.count) × \(Self.elapsed(best.age))"
+    }
+
+    private func row(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+            Spacer()
+            Text(value).font(.caption2.monospacedDigit()).lineLimit(1)
+        }
+    }
+
+    private static func elapsed(_ seconds: TimeInterval) -> String {
+        let minutes = Int(max(0, seconds) / 60)
+        if minutes < 1 { return L.t("just_now") }
+        if minutes < 60 { return "\(minutes) min" }
+        let hours = minutes / 60
+        return hours < 24 ? "\(hours) h" : "\(hours / 24) d"
+    }
+
+    private static func sourceLabel(_ source: WidgetRenderSource) -> String {
+        switch source {
+        case .appSnapshot: return L.t("source_app")
+        case .selfFetched: return L.t("source_network")
+        case .fallback: return L.t("source_fallback")
+        case .placeholder: return L.t("source_placeholder")
         }
     }
 }

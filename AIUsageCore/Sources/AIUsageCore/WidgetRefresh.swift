@@ -28,17 +28,29 @@ public enum WidgetRefresh {
     /// - else fetches the endpoints directly and persists the result;
     /// - on `timeout` (or no credentials) falls back to the last snapshot so a
     ///   slow network never blanks the widget.
-    public static func snapshot(maxAge: TimeInterval = 300, timeout: TimeInterval = 15,
-                                completion: @escaping (WidgetSnapshot) -> Void) {
+    /// The completion also reports WHERE the content came from, so the
+    /// extension can record it: when a complication refuses to move, "it never
+    /// ran" and "it ran and drew the placeholder" look identical from outside.
+    ///
+    /// `timeout` MUST stay well under WidgetKit's own budget for producing a
+    /// timeline. It used to be 15 s, which is around that budget: on the watch,
+    /// where the providers are reached over the phone's link, the fetch
+    /// regularly outlived it, so WidgetKit killed the extension BEFORE the
+    /// fallback fired. An extension that returns no timeline renders nothing at
+    /// all — which is the blank complication, and also the blank preview in the
+    /// picker, since chronod has no successful render to show there either.
+    public static func snapshot(maxAge: TimeInterval = 300, timeout: TimeInterval = 5,
+                                completion: @escaping (WidgetSnapshot, WidgetRenderSource) -> Void) {
         let existing = WidgetShared.load()
         if let existing, existing.age < maxAge {
-            completion(existing)
+            completion(existing, .appSnapshot)
             return
         }
 
         let credentialed = credentialedProviders()
         guard !credentialed.isEmpty else {
-            completion(existing ?? .placeholder)
+            completion(existing ?? .placeholder,
+                       existing == nil ? .placeholder : .fallback)
             return
         }
         let showRemaining = existing?.showRemaining ?? true
@@ -59,22 +71,34 @@ public enum WidgetRefresh {
         }
         group.enter(); StatusFetcher.fetchAll([.anthropic, .openAI]) { health = $0; group.leave() }
 
-        var finished = false
-        func complete(_ snapshot: WidgetSnapshot, persist: Bool) {
-            guard !finished else { return }
-            finished = true
-            if persist { WidgetShared.save(snapshot) }
-            completion(snapshot)
+        // Two queues race to deliver now, so the guard needs a real lock.
+        let lock = NSLock()
+        var delivered = false
+        func deliver(_ snapshot: WidgetSnapshot, _ source: WidgetRenderSource) {
+            lock.lock()
+            let first = !delivered
+            delivered = true
+            lock.unlock()
+            guard first else { return }
+            completion(snapshot, source)
         }
-        group.notify(queue: .main) {
-            complete(SnapshotBuilder.network(anthropic: claude, openAI: openAI, deepSeek: deepSeek,
-                                             credentialed: credentialed, health: health,
-                                             showRemaining: showRemaining),
-                     persist: true)
+
+        // Neither arm runs on the main queue any more: the fallback is what
+        // keeps WidgetKit from killing the extension empty-handed, so it must
+        // not be sitting behind whatever else the main queue is doing.
+        group.notify(queue: .global(qos: .userInitiated)) {
+            let fresh = SnapshotBuilder.network(anthropic: claude, openAI: openAI, deepSeek: deepSeek,
+                                                credentialed: credentialed, health: health,
+                                                showRemaining: showRemaining)
+            // Persist even when the fallback already answered: the fetch that
+            // arrived too late for THIS timeline is exactly what makes the next
+            // one fresh. Discarding it left the extension re-fetching from
+            // scratch every time and never getting ahead.
+            WidgetShared.save(fresh)
+            deliver(fresh, .selfFetched)
         }
-        // Never hold the extension past its budget: keep last known good data.
-        DispatchQueue.main.asyncAfter(deadline: .now() + timeout) {
-            complete(existing ?? .placeholder, persist: false)
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + timeout) {
+            deliver(existing ?? .placeholder, existing == nil ? .placeholder : .fallback)
         }
     }
 }

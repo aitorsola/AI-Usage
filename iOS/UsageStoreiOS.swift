@@ -40,9 +40,31 @@ final class UsageStoreiOS: ObservableObject {
 
     var providers: [ProviderData] { [anthropic, openAI, deepSeek] }
 
+    // A fetch that never calls back must not pin `isRefreshing`: every later
+    // tick of the 60 s timer would return instantly, so the snapshot would stop
+    // moving and the watch would stop being pushed to — for the rest of the
+    // process lifetime. Longer than the providers' own 15 s request timeouts
+    // plus the token lock wait, so it only fires on a genuine hang.
+    private static let refreshWatchdog: TimeInterval = 45
+    // How long before a reload WidgetKit ignored is asked for again.
+    private static let reloadRetryFloor: TimeInterval = 300
+
+    private var refreshGeneration = 0
+
     func refresh() {
         guard !isRefreshing else { return }
         isRefreshing = true
+        refreshGeneration &+= 1
+        let generation = refreshGeneration
+
+        var settled = false
+        func settle(_ apply: () -> Void) {
+            guard !settled, generation == self.refreshGeneration else { return }
+            settled = true
+            self.isRefreshing = false
+            apply()
+        }
+
         let group = DispatchGroup()
         var claude = PlanStatus(), openAILive = PlanStatus(), ds = PlanStatus()
         var health: [ProviderKind: PlatformHealth] = [:]
@@ -50,20 +72,23 @@ final class UsageStoreiOS: ObservableObject {
         group.enter(); OpenAIUsageFetcher.fetch { openAILive = $0; group.leave() }
         group.enter(); DeepSeekFetcher.fetch { ds = $0; group.leave() }
         group.enter(); StatusFetcher.fetchAll([.anthropic, .openAI]) { health = $0; group.leave() }
-        group.notify(queue: .main) { [weak self] in
-            guard let self else { return }
-            self.anthropic = ProviderData(kind: .anthropic, plan: claude, available: !claude.needsLogin)
-            self.openAI = ProviderData(kind: .openAI, plan: openAILive, available: !openAILive.needsLogin)
-            self.deepSeek = ProviderData(kind: .deepSeek, plan: ds, available: !ds.needsLogin)
-            self.health = health
-            self.lastUpdated = Date()
-            self.isRefreshing = false
-            self.writeSnapshot()
+        group.notify(queue: .main) {
+            settle {
+                self.anthropic = ProviderData(kind: .anthropic, plan: claude, available: !claude.needsLogin)
+                self.openAI = ProviderData(kind: .openAI, plan: openAILive, available: !openAILive.needsLogin)
+                self.deepSeek = ProviderData(kind: .deepSeek, plan: ds, available: !ds.needsLogin)
+                self.health = health
+                self.lastUpdated = Date()
+                self.writeSnapshot()
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.refreshWatchdog) {
+            // Drop the stuck attempt so the next timer tick can try again.
+            settle {}
         }
     }
 
-    private var lastReloadFingerprint: WidgetSnapshot?
-    private var lastReloadAt: Date?
+    private var lastReloadRequestedAt: Date?
 
     func writeSnapshot() {
         let showRemaining = (UserDefaults.standard.string(forKey: SettingsKeys.limitDisplay)
@@ -78,15 +103,17 @@ final class UsageStoreiOS: ObservableObject {
                                                showRemaining: showRemaining, updated: lastUpdated)
         WidgetShared.save(snapshot)
         WatchSync.shared.push(snapshot)
-        // Reload on any real content change, and at least every few minutes
-        // while the app is foregrounded so the reset countdown never freezes.
-        let fingerprint = snapshot.reloadFingerprint
+        // Ask for a reload while what the widget actually drew disagrees with
+        // what we have — not merely when the content changed since the last
+        // reload we requested. WidgetKit drops requests once the daily budget
+        // is spent, and treating a dropped one as delivered left the widget
+        // showing stale numbers until they happened to move again.
+        guard snapshot.reloadDigest != WidgetShared.renderedDigest() else { return }
         let now = Date()
-        let overdue = lastReloadAt.map { now.timeIntervalSince($0) >= 300 } ?? true
-        if fingerprint != lastReloadFingerprint || overdue {
-            lastReloadFingerprint = fingerprint
-            lastReloadAt = now
-            WidgetCenter.shared.reloadAllTimelines()
+        if let last = lastReloadRequestedAt, now.timeIntervalSince(last) < Self.reloadRetryFloor {
+            return
         }
+        lastReloadRequestedAt = now
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }

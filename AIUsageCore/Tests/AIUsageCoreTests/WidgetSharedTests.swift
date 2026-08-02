@@ -73,6 +73,26 @@ final class WidgetSharedTests: XCTestCase {
                           snapshot(used: 37, reset: nil).reloadFingerprint)
     }
 
+    func testReloadDigestIsStableAndTracksTheFingerprint() {
+        // El dígito debe poder compararse ENTRE procesos (app vs. extensión),
+        // así que no puede depender del hashValue, sembrado por lanzamiento.
+        let a = snapshot(used: 37.2, reset: "2 h 5 min", updated: "12:00")
+        let b = snapshot(used: 37.4, reset: "2 h 4 min", updated: "12:01")
+        XCTAssertEqual(a.reloadDigest, b.reloadDigest, "el churn no cambia el dígito")
+        XCTAssertEqual(a.reloadDigest, a.reloadDigest, "mismo contenido → mismo dígito")
+        XCTAssertNotEqual(a.reloadDigest, snapshot(used: 38, reset: "2 h 5 min").reloadDigest)
+        XCTAssertFalse(a.reloadDigest.isEmpty)
+    }
+
+    func testReloadDigestSurvivesEncodeDecode() throws {
+        // La extensión escribe el dígito de lo que dibujó tras deserializar el
+        // snapshot del disco: debe coincidir con el que calcula la app.
+        let original = snapshot(used: 37, reset: "1 h")
+        let decoded = try JSONDecoder().decode(
+            WidgetSnapshot.self, from: JSONEncoder().encode(original))
+        XCTAssertEqual(original.reloadDigest, decoded.reloadDigest)
+    }
+
     func testReloadFingerprintTracksStatusNotes() {
         let base = snapshot(used: 37, reset: nil)
         var noted = base

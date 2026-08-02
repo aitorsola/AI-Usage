@@ -18,19 +18,27 @@ struct SnapshotEntry: TimelineEntry {
 
 struct SnapshotProvider: TimelineProvider {
     func placeholder(in context: Context) -> SnapshotEntry {
-        SnapshotEntry(date: Date(timeIntervalSince1970: 0), snapshot: .placeholder)
+        WidgetShared.recordPing(.placeholder)
+        return SnapshotEntry(date: Date(timeIntervalSince1970: 0), snapshot: .placeholder)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SnapshotEntry) -> Void) {
+        WidgetShared.recordPing(.snapshot)
         completion(SnapshotEntry(date: Date(timeIntervalSince1970: 0),
                                  snapshot: WidgetShared.load() ?? .placeholder))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SnapshotEntry>) -> Void) {
+        WidgetShared.recordPing(.timeline)
         // App-driven: the always-running menu bar app writes the snapshot and
         // reloads the timeline. (macOS can't share the keychain with the widget
         // without a provisioning profile, so the widget can't self-fetch.)
-        let entry = SnapshotEntry(date: Date(), snapshot: WidgetShared.load() ?? .placeholder)
+        let snapshot = WidgetShared.load() ?? .placeholder
+        // Acknowledge what we drew: the app only spends a reload while this
+        // disagrees with the snapshot it holds, so a request WidgetKit dropped
+        // gets made again instead of leaving the widget frozen for the day.
+        WidgetShared.recordRendered(snapshot)
+        let entry = SnapshotEntry(date: Date(), snapshot: snapshot)
         completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(30 * 60))))
     }
 }
