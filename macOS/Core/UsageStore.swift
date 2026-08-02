@@ -50,11 +50,27 @@ final class UsageStore: ObservableObject {
         updateWidgetSnapshot()
     }
     
+    // Same protection as the iOS/watch stores: a fetch that never calls back
+    // must not pin `refreshing` — every later tick of the 60 s timer would
+    // return instantly and the menu bar would silently stop updating. All
+    // completion paths fire today (URLSession timeouts, bounded token lock);
+    // this guards the day one of them stops doing so.
+    private static let refreshWatchdog: TimeInterval = 60
+    private var refreshGeneration = 0
+
     func refresh() {
         DispatchQueue.main.async {
             guard !self.refreshing else { return }
             self.refreshing = true
             self.isRefreshing = true
+            self.refreshGeneration &+= 1
+            let generation = self.refreshGeneration
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.refreshWatchdog) {
+                // Drop the stuck attempt so the next timer tick can try again.
+                guard generation == self.refreshGeneration, self.refreshing else { return }
+                self.refreshing = false
+                self.isRefreshing = false
+            }
             self.queue.async {
                 let cutoff = Calendar.current.date(byAdding: .day, value: -35, to: Date())!
 
@@ -82,6 +98,9 @@ final class UsageStore: ObservableObject {
                 StatusFetcher.fetchAll([.anthropic, .openAI]) { health = $0; group.leave() }
 
                 group.notify(queue: .main) {
+                    // If the watchdog already gave up on this attempt and a new
+                    // one is running, this late completion must not clobber it.
+                    guard generation == self.refreshGeneration else { return }
                     var openAIPlan = openAILive
                     if openAIPlan.gauges.isEmpty && openAIPlan.error == nil {
                         openAIPlan.error = L.t("no_limit_data")
@@ -134,6 +153,7 @@ final class UsageStore: ObservableObject {
     // MARK: - Widget snapshot
 
     private var lastReloadRequestedAt: Date?
+    private var lastRequestedDigest: String?
     // WidgetKit grants a widget roughly 40-70 reloads per DAY, so the app asks
     // for one only while the widget's own render disagrees with the snapshot on
     // disk — never on the 60 s refresh cadence, which at ~288/day made chronod
@@ -181,12 +201,17 @@ final class UsageStore: ObservableObject {
         // snapshot is saved on every refresh, but reloads are precious (see
         // widgetReloadFloor) — spend one only while the widget's own render is
         // behind the snapshot, and keep asking until it catches up.
-        guard snapshot.reloadDigest != WidgetShared.renderedDigest() else { return }
-        let now = Date()
-        if let last = lastReloadRequestedAt, now.timeIntervalSince(last) < Self.widgetReloadFloor {
+        let wanted = snapshot.reloadDigest
+        guard wanted != WidgetShared.renderedDigest() else { return }
+        // Only a REPEAT of the same content is throttled — that's a request
+        // WidgetKit dropped, and hammering it wastes budget. Content that
+        // changed since the last request reloads immediately, as it always did.
+        if wanted == lastRequestedDigest, let last = lastReloadRequestedAt,
+           Date().timeIntervalSince(last) < Self.widgetReloadFloor {
             return
         }
-        lastReloadRequestedAt = now
+        lastRequestedDigest = wanted
+        lastReloadRequestedAt = Date()
         WidgetCenter.shared.reloadAllTimelines()
     }
 

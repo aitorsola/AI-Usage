@@ -56,6 +56,7 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
     private var refreshGeneration = 0
     private var lastCredentialIdentity: Int?
     private var lastReloadRequestedAt: Date?
+    private var lastRequestedDigest: String?
 
     // A fetch that never calls back must not pin `refreshing` forever: that is
     // exactly what a blocked cross-process token lock did, and from then on
@@ -225,12 +226,16 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
     // Compare against what the complication actually drew (it records that from
     // getTimeline) and keep asking, slowly, until the two agree.
     private func requestReloadIfStale(_ snap: WidgetSnapshot) {
-        guard snap.reloadDigest != WidgetShared.renderedDigest() else { return }
-        let now = Date()
-        if let last = lastReloadRequestedAt, now.timeIntervalSince(last) < Self.reloadRetryFloor {
+        let wanted = snap.reloadDigest
+        guard wanted != WidgetShared.renderedDigest() else { return }
+        // Throttle only the REPEAT of a request WidgetKit dropped; content
+        // that changed since the last request reloads immediately.
+        if wanted == lastRequestedDigest, let last = lastReloadRequestedAt,
+           Date().timeIntervalSince(last) < Self.reloadRetryFloor {
             return
         }
-        lastReloadRequestedAt = now
+        lastRequestedDigest = wanted
+        lastReloadRequestedAt = Date()
         WidgetCenter.shared.reloadAllTimelines()
     }
 }

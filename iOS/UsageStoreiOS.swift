@@ -89,6 +89,7 @@ final class UsageStoreiOS: ObservableObject {
     }
 
     private var lastReloadRequestedAt: Date?
+    private var lastRequestedDigest: String?
 
     func writeSnapshot() {
         let showRemaining = (UserDefaults.standard.string(forKey: SettingsKeys.limitDisplay)
@@ -108,12 +109,16 @@ final class UsageStoreiOS: ObservableObject {
         // reload we requested. WidgetKit drops requests once the daily budget
         // is spent, and treating a dropped one as delivered left the widget
         // showing stale numbers until they happened to move again.
-        guard snapshot.reloadDigest != WidgetShared.renderedDigest() else { return }
-        let now = Date()
-        if let last = lastReloadRequestedAt, now.timeIntervalSince(last) < Self.reloadRetryFloor {
+        let wanted = snapshot.reloadDigest
+        guard wanted != WidgetShared.renderedDigest() else { return }
+        // Throttle only the REPEAT of a request WidgetKit dropped; content
+        // that changed since the last request reloads immediately.
+        if wanted == lastRequestedDigest, let last = lastReloadRequestedAt,
+           Date().timeIntervalSince(last) < Self.reloadRetryFloor {
             return
         }
-        lastReloadRequestedAt = now
+        lastRequestedDigest = wanted
+        lastReloadRequestedAt = Date()
         WidgetCenter.shared.reloadAllTimelines()
     }
 }
