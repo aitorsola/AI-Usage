@@ -184,7 +184,7 @@ public enum PlanFetcher {
         ("seven_day_oauth_apps", L.t("apps_week")),
     ]
 
-    private static func gauges(from obj: [String: Any]) -> [PlanGauge] {
+    static func gauges(from obj: [String: Any]) -> [PlanGauge] {
         var found: [String: PlanGauge] = [:]
 
         func scan(_ dict: [String: Any], depth: Int) {
@@ -193,8 +193,19 @@ public enum PlanFetcher {
                 guard let v = value as? [String: Any] else { continue }
                 if let u = v["utilization"] as? NSNumber {
                     let resets = parseDate(v["resets_at"])
-                    let label = knownLabels.first(where: { $0.0 == key })?.1 ?? prettify(key)
-                    found[key] = PlanGauge(key: key, label: label,
+                    // Unknown keys still surface — that's how new limits like
+                    // seven_day_opus appeared without a code change — but only
+                    // with some sign of life. The endpoint also ships dormant
+                    // experiment buckets under internal codenames
+                    // ("nimbus_quill": utilization 0, no reset, no dollars),
+                    // and those rendered as a meaningless "Nimbus Quill" gauge.
+                    let known = knownLabels.first(where: { $0.0 == key })?.1
+                    if known == nil {
+                        let hasDollars = v["limit_dollars"] as? NSNumber != nil
+                            || v["used_dollars"] as? NSNumber != nil
+                        guard u.doubleValue > 0 || resets != nil || hasDollars else { continue }
+                    }
+                    found[key] = PlanGauge(key: key, label: known ?? prettify(key),
                                            utilization: u.doubleValue, resetsAt: resets)
                 } else if depth < 1 {
                     scan(v, depth: depth + 1)
