@@ -56,6 +56,9 @@ final class UsageStore: ObservableObject {
     // completion paths fire today (URLSession timeouts, bounded token lock);
     // this guards the day one of them stops doing so.
     private static let refreshWatchdog: TimeInterval = 60
+    // Renew tokens this far ahead while the app runs, so the widget — which
+    // only refreshes what already expired — almost never has to.
+    private static let proactiveRefresh: TimeInterval = 2 * 3600
     private var refreshGeneration = 0
 
     func refresh() {
@@ -89,9 +92,9 @@ final class UsageStore: ObservableObject {
                 var deepSeekPlan = PlanStatus()
                 var health: [ProviderKind: PlatformHealth] = [:]
                 group.enter()
-                PlanFetcher.fetch { claudePlan = $0; group.leave() }
+                PlanFetcher.fetch(proactiveWindow: Self.proactiveRefresh) { claudePlan = $0; group.leave() }
                 group.enter()
-                OpenAIUsageFetcher.fetch { openAILive = $0; group.leave() }
+                OpenAIUsageFetcher.fetch(proactiveWindow: Self.proactiveRefresh) { openAILive = $0; group.leave() }
                 group.enter()
                 DeepSeekFetcher.fetch { deepSeekPlan = $0; group.leave() }
                 group.enter()
@@ -109,16 +112,30 @@ final class UsageStore: ObservableObject {
                         || !openAIPlan.gauges.isEmpty
                         || codexSnap.last30.messages > 0
 
-                    self.anthropic = ProviderData(kind: .anthropic, snapshot: claudeSnap,
-                                                  plan: claudePlan, available: true)
-                    self.openAI = ProviderData(kind: .openAI, snapshot: codexSnap,
-                                               plan: openAIPlan, available: openAIAvailable)
-                    self.openCode = ProviderData(kind: .openCode, snapshot: opencodeSnap,
-                                                 plan: PlanStatus(),
-                                                 available: opencode.installed && opencodeSnap.last30.messages > 0)
-                    self.deepSeek = ProviderData(kind: .deepSeek, snapshot: UsageSnapshot(),
-                                                 plan: deepSeekPlan,
-                                                 available: !deepSeekPlan.needsLogin)
+                    self.anthropic = ProviderData(
+                        kind: .anthropic,
+                        snapshot: claudeSnap,
+                        plan: claudePlan,
+                        available: true
+                    )
+                    self.openAI = ProviderData(
+                        kind: .openAI,
+                        snapshot: codexSnap,
+                        plan: openAIPlan,
+                        available: openAIAvailable
+                    )
+                    self.openCode = ProviderData(
+                        kind: .openCode,
+                        snapshot: opencodeSnap,
+                        plan: PlanStatus(),
+                        available: opencode.installed && opencodeSnap.last30.messages > 0
+                    )
+                    self.deepSeek = ProviderData(
+                        kind: .deepSeek,
+                        snapshot: UsageSnapshot(),
+                        plan: deepSeekPlan,
+                        available: !deepSeekPlan.needsLogin
+                    )
                     self.health = health
                     self.lastUpdated = Date()
                     self.hasLoaded = true
@@ -154,13 +171,11 @@ final class UsageStore: ObservableObject {
 
     private var lastReloadRequestedAt: Date?
     private var lastRequestedDigest: String?
-    // WidgetKit grants a widget roughly 40-70 reloads per DAY, so the app asks
-    // for one only while the widget's own render disagrees with the snapshot on
-    // disk — never on the 60 s refresh cadence, which at ~288/day made chronod
-    // honour the morning and ignore the rest of the day. This floor spaces out
-    // the retries for the case that matters: a request WidgetKit DROPPED, which
-    // it never reports, and which the old code recorded as if it had landed.
-    private static let widgetReloadFloor: TimeInterval = 600
+    // The app asks for a reload only while the widget's own render disagrees
+    // with the snapshot on disk. Mac widgets carry no daily reload budget
+    // (unlike iOS), so a repeat of a request chronod ignored is retried after
+    // a short floor; the widget's own 5-minute timeline is the backstop.
+    private static let widgetReloadFloor: TimeInterval = 120
 
     func updateWidgetSnapshot() {
         let defaults = UserDefaults.standard

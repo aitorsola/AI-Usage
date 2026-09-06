@@ -11,84 +11,114 @@ import Security
 public enum PlanFetcher {
     static let userAgent = "claude-code/2.1.207 (external, ai-usage)"
 
-    public static func fetch(completion: @escaping (PlanStatus) -> Void) {
-        resolveToken { token, subscription, problem, needsLogin in
+    /// `proactiveWindow`: renew the token ahead of time while at least that
+    /// much is left — apps pass hours so their extensions (which pass 0) almost
+    /// never have to refresh themselves. See TokenPolicy.
+    public static func fetch(proactiveWindow: TimeInterval = 0,
+                             completion: @escaping (PlanStatus) -> Void) {
+        resolveToken(proactiveWindow: proactiveWindow, rejectedToken: nil) { token, problem, needsLogin in
             guard let token else {
-                completion(PlanStatus(gauges: [], subscription: subscription,
-                                      error: problem ?? L.t("no_session"),
+                completion(PlanStatus(gauges: [], error: problem ?? L.t("no_session"),
                                       needsLogin: needsLogin))
                 return
             }
-            requestUsage(token: token, subscription: subscription) { usageStatus in
-                requestProfile(token: token, base: usageStatus, completion: completion)
-            }
-        }
-    }
-
-    private static func isValid(_ c: AnthropicOAuth.OwnCredentials) -> Bool {
-        c.expiresAt.map { $0 > Date().addingTimeInterval(60) } ?? true
-    }
-
-    private static func resolveToken(_ done: @escaping (_ token: String?, _ subscription: String?, _ problem: String?, _ needsLogin: Bool) -> Void) {
-        guard let own = AnthropicTokenStore.load() else {
-            done(nil, nil, L.t("no_session_sign_in_with_your"), true)
-            return
-        }
-        if isValid(own) {
-            done(own.accessToken, nil, nil, false)   // fast path — no lock needed
-            return
-        }
-        guard own.refreshToken != nil else {
-            done(nil, nil, L.t("session_expired_sign_in_again"), true)
-            return
-        }
-        // Expired: serialize the refresh across the app and its extensions so
-        // two processes never spend the same refresh token at once.
-        DispatchQueue.global(qos: .userInitiated).async {
-            let lock = TokenRefreshLock.acquire(AnthropicTokenStore.service)
-            // Re-read after acquiring: another process may have just refreshed.
-            guard let current = AnthropicTokenStore.load() else {
-                TokenRefreshLock.release(lock)
-                done(nil, nil, L.t("session_expired_sign_in_again"), true)
-                return
-            }
-            if isValid(current) {
-                TokenRefreshLock.release(lock)
-                done(current.accessToken, nil, nil, false)
-                return
-            }
-            guard let rt = current.refreshToken else {
-                TokenRefreshLock.release(lock)
-                done(nil, nil, L.t("session_expired_sign_in_again"), true)
-                return
-            }
-            AnthropicOAuth.refresh(refreshToken: rt) { creds, error in
-                TokenRefreshLock.release(lock)
-                if let creds {
-                    AuthFailureTracker.clear(AnthropicTokenStore.service)
-                    done(creds.accessToken, nil, nil, false)
-                } else if OAuthError.isAuthFailure(error) {
-                    // Rejected — but that alone does not mean the session died:
-                    // the paired watch refreshes the same token family and may
-                    // have just rotated this copy away. Demand a re-login only
-                    // once the rejection persists; otherwise keep the session so
-                    // the peer's fresh copy can land and recover it.
-                    if AuthFailureTracker.record(AnthropicTokenStore.service) {
-                        done(nil, nil, L.t("session_expired_sign_in_again"), true)
-                    } else {
-                        done(nil, nil, error ?? L.t("no_session"), false)
+            requestUsage(token: token) { usageStatus in
+                guard usageStatus.rejected else {
+                    requestProfile(token: token, base: usageStatus.status, completion: completion)
+                    return
+                }
+                // 401 before the local expiry: the provider dropped this access
+                // token early. Refresh THIS token once and retry, instead of
+                // telling the user to sign in again for hours.
+                resolveToken(proactiveWindow: 0, rejectedToken: token) { retryToken, problem, needsLogin in
+                    guard let retryToken else {
+                        completion(PlanStatus(gauges: [], error: problem ?? L.t("no_session"),
+                                              needsLogin: needsLogin))
+                        return
                     }
-                } else {
-                    // Transient (network / server) failure: keep the session and
-                    // retry next cycle instead of forcing a re-login.
-                    done(nil, nil, error ?? L.t("no_session"), false)
+                    requestUsage(token: retryToken) { retried in
+                        requestProfile(token: retryToken, base: retried.status, completion: completion)
+                    }
                 }
             }
         }
     }
 
-    private static func requestUsage(token: String, subscription: String?,
-                                     completion: @escaping (PlanStatus) -> Void) {
+    /// Hands back a usable access token, refreshing under the cross-process
+    /// lock when TokenPolicy says so. `rejectedToken` is an access token a
+    /// usage endpoint just refused: it is refreshed regardless of its expiry
+    /// unless another process already replaced it.
+    private static func resolveToken(proactiveWindow: TimeInterval, rejectedToken: String?,
+                                     _ done: @escaping (_ token: String?, _ problem: String?, _ needsLogin: Bool) -> Void) {
+        guard let own = AnthropicTokenStore.load() else {
+            done(nil, L.t("no_session_sign_in_with_your"), true)
+            return
+        }
+        let rejected = rejectedToken == own.accessToken
+        if !TokenPolicy.shouldRefresh(expiresAt: own.expiresAt, proactiveWindow: proactiveWindow,
+                                      rejected: rejected) {
+            done(own.accessToken, nil, false)   // fast path — no lock needed
+            return
+        }
+        let stillUsable = !rejected && TokenPolicy.isUsable(expiresAt: own.expiresAt)
+        guard own.refreshToken != nil else {
+            stillUsable ? done(own.accessToken, nil, false)
+                        : done(nil, L.t("session_expired_sign_in_again"), true)
+            return
+        }
+        // Serialize the refresh across the app and its extension so two
+        // processes never spend the same (single-use) refresh token.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let lock = TokenRefreshLock.acquire(AnthropicTokenStore.service)
+            // Re-read after acquiring: another process may have just refreshed.
+            guard let current = AnthropicTokenStore.load() else {
+                TokenRefreshLock.release(lock)
+                done(nil, L.t("session_expired_sign_in_again"), true)
+                return
+            }
+            let currentRejected = rejectedToken == current.accessToken
+            if !TokenPolicy.shouldRefresh(expiresAt: current.expiresAt, proactiveWindow: proactiveWindow,
+                                          rejected: currentRejected) {
+                TokenRefreshLock.release(lock)
+                done(current.accessToken, nil, false)
+                return
+            }
+            let currentUsable = !currentRejected && TokenPolicy.isUsable(expiresAt: current.expiresAt)
+            guard let rt = current.refreshToken else {
+                TokenRefreshLock.release(lock)
+                currentUsable ? done(current.accessToken, nil, false)
+                              : done(nil, L.t("session_expired_sign_in_again"), true)
+                return
+            }
+            AnthropicOAuth.refresh(refreshToken: rt) { creds, error in
+                if let creds { AnthropicTokenStore.save(creds) }
+                TokenRefreshLock.release(lock)
+                if let creds {
+                    done(creds.accessToken, nil, false)
+                } else if currentUsable {
+                    // A proactive renewal failed but the current token still
+                    // works: use it and try again next cycle.
+                    done(current.accessToken, nil, false)
+                } else if OAuthError.isAuthFailure(error) {
+                    // Only this device refreshes this token family, so a
+                    // rejected refresh token is a genuinely dead session.
+                    done(nil, L.t("session_expired_sign_in_again"), true)
+                } else {
+                    // Transient (network / server) failure: keep the session
+                    // and retry next cycle instead of forcing a re-login.
+                    done(nil, error ?? L.t("no_session"), false)
+                }
+            }
+        }
+    }
+
+    private struct UsageResult {
+        var status: PlanStatus
+        /// The access token was refused (401) — distinct from any other error.
+        var rejected = false
+    }
+
+    private static func requestUsage(token: String, completion: @escaping (UsageResult) -> Void) {
         var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!)
         req.timeoutInterval = 15
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -97,31 +127,32 @@ public enum PlanFetcher {
         req.setValue(userAgent, forHTTPHeaderField: "User-Agent")
 
         URLSession.shared.dataTask(with: req) { data, resp, err in
-            var status = PlanStatus(subscription: subscription)
-            defer { completion(status) }
+            var result = UsageResult(status: PlanStatus())
+            defer { completion(result) }
             if let err {
-                status.error = err.localizedDescription
+                result.status.error = err.localizedDescription
                 return
             }
             guard let http = resp as? HTTPURLResponse else {
-                status.error = L.t("invalid_response")
+                result.status.error = L.t("invalid_response")
                 return
             }
             guard http.statusCode == 200 else {
                 if http.statusCode == 401 {
-                    status.error = L.t("unauthorized_sign_in_again")
-                    status.needsLogin = true
+                    result.status.error = L.t("unauthorized_sign_in_again")
+                    result.status.needsLogin = true
+                    result.rejected = true
                 } else {
-                    status.error = "HTTP \(http.statusCode)"
+                    result.status.error = "HTTP \(http.statusCode)"
                 }
                 return
             }
             guard let data,
                   let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-                status.error = L.t("unexpected_json")
+                result.status.error = L.t("unexpected_json")
                 return
             }
-            status.gauges = gauges(from: obj)
+            result.status.gauges = gauges(from: obj)
             if let extra = obj["extra_usage"] as? [String: Any],
                (extra["is_enabled"] as? NSNumber)?.boolValue == true {
                 let eu = ExtraUsage(
@@ -129,11 +160,11 @@ public enum PlanFetcher {
                     usedCredits: (extra["used_credits"] as? NSNumber)?.doubleValue,
                     monthlyLimit: (extra["monthly_limit"] as? NSNumber)?.doubleValue)
                 if eu.utilization != nil || eu.usedCredits != nil || eu.monthlyLimit != nil {
-                    status.extraUsage = eu
+                    result.status.extraUsage = eu
                 }
             }
-            if status.gauges.isEmpty && !status.hasExtras {
-                status.error = L.t("no_limit_data")
+            if result.status.gauges.isEmpty && !result.status.hasExtras {
+                result.status.error = L.t("no_limit_data")
             }
         }.resume()
     }

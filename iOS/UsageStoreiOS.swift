@@ -24,14 +24,18 @@ final class UsageStoreiOS: ObservableObject {
 
     lazy var anthropicLogin = ProviderLogin(.anthropic) { [weak self] in self?.refresh() }
     lazy var openAILogin = ProviderLogin(.openAI) { [weak self] in self?.refresh() }
+    // The watch's own grants: same browser flow, parked under the watch
+    // service and handed over instead of used here.
+    lazy var anthropicWatchLogin = ProviderLogin(.anthropic.forWatchHandover) {
+        WatchSync.shared.handOver(.anthropic)
+    }
+    lazy var openAIWatchLogin = ProviderLogin(.openAI.forWatchHandover) {
+        WatchSync.shared.handOver(.openAI)
+    }
 
     private var timer: Timer?
 
     init() {
-        // The watch hands back credentials it rotated; refetch with them so a
-        // session that had started failing recovers without a re-login.
-        WatchSync.shared.onCredentialsMerged = { [weak self] in self?.refresh() }
-        WatchSync.shared.activate()
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
@@ -48,6 +52,9 @@ final class UsageStoreiOS: ObservableObject {
     private static let refreshWatchdog: TimeInterval = 45
     // How long before a reload WidgetKit ignored is asked for again.
     private static let reloadRetryFloor: TimeInterval = 300
+    // Renew tokens this far ahead while the app is alive, so the widget —
+    // which only refreshes what already expired — almost never has to.
+    private static let proactiveRefresh: TimeInterval = 2 * 3600
 
     private var refreshGeneration = 0
 
@@ -68,8 +75,8 @@ final class UsageStoreiOS: ObservableObject {
         let group = DispatchGroup()
         var claude = PlanStatus(), openAILive = PlanStatus(), ds = PlanStatus()
         var health: [ProviderKind: PlatformHealth] = [:]
-        group.enter(); PlanFetcher.fetch { claude = $0; group.leave() }
-        group.enter(); OpenAIUsageFetcher.fetch { openAILive = $0; group.leave() }
+        group.enter(); PlanFetcher.fetch(proactiveWindow: Self.proactiveRefresh) { claude = $0; group.leave() }
+        group.enter(); OpenAIUsageFetcher.fetch(proactiveWindow: Self.proactiveRefresh) { openAILive = $0; group.leave() }
         group.enter(); DeepSeekFetcher.fetch { ds = $0; group.leave() }
         group.enter(); StatusFetcher.fetchAll([.anthropic, .openAI]) { health = $0; group.leave() }
         group.notify(queue: .main) {

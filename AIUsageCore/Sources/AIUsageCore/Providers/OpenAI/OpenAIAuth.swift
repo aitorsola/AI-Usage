@@ -98,7 +98,8 @@ public enum OpenAIOAuth {
                 accountID: accountID(idToken: idToken, accessToken: access) ?? fallbackAccountID,
                 planType: planType(idToken: idToken, accessToken: access),
                 email: email(idToken: idToken, accessToken: access) ?? fallbackEmail)
-            OpenAITokenStore.save(creds)
+            // Not stored here: the caller saves under its refresh lock (or
+            // parks a watch grant under the watch service).
             completion(creds, nil)
         }.resume()
     }
@@ -161,10 +162,14 @@ public enum OpenAIOAuth {
 }
 
 public enum OpenAITokenStore {
-    static let service = "AI Usage-openai-credentials"
+    /// This device's own session.
+    public static let service = "AI Usage-openai-credentials"
+    /// The Apple Watch's own session, parked on the iPhone only until the
+    /// watch confirms it received it. Never refreshed from the phone.
+    public static let watchService = "AI Usage-openai-credentials-watch"
 
-    public static func load() -> OpenAIOAuth.Credentials? {
-        guard let data = Keychain.load(service: service),
+    public static func load(service: String = service) -> OpenAIOAuth.Credentials? {
+        guard let data = CredentialStore.load(service: service),
               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let token = obj["accessToken"] as? String, !token.isEmpty
         else { return nil }
@@ -179,7 +184,7 @@ public enum OpenAITokenStore {
                                        email: obj["email"] as? String)
     }
 
-    public static func save(_ creds: OpenAIOAuth.Credentials) {
+    public static func save(_ creds: OpenAIOAuth.Credentials, service: String = service) {
         var payload: [String: Any] = ["accessToken": creds.accessToken]
         if let r = creds.refreshToken { payload["refreshToken"] = r }
         if let e = creds.expiresAt { payload["expiresAt"] = e.timeIntervalSince1970 * 1000 }
@@ -187,11 +192,11 @@ public enum OpenAITokenStore {
         if let p = creds.planType { payload["planType"] = p }
         if let m = creds.email { payload["email"] = m }
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
-        Keychain.save(data, service: service)
+        CredentialStore.save(data, service: service)
     }
 
-    public static func delete() {
-        Keychain.delete(service: service)
+    public static func delete(service: String = service) {
+        CredentialStore.delete(service: service)
     }
 }
 
@@ -221,35 +226,50 @@ public enum CodexAuthFile {
 }
 
 public enum OpenAIUsageFetcher {
-    public static func fetch(completion: @escaping (PlanStatus) -> Void) {
-        resolveCredentials { creds, problem, needsLogin in
+    /// See PlanFetcher.fetch(proactiveWindow:) — same contract.
+    public static func fetch(proactiveWindow: TimeInterval = 0,
+                             completion: @escaping (PlanStatus) -> Void) {
+        resolveCredentials(proactiveWindow: proactiveWindow, rejectedToken: nil) { creds, problem, needsLogin in
             guard let creds else {
                 completion(PlanStatus(gauges: [], subscription: nil,
                                       error: problem, needsLogin: needsLogin))
                 return
             }
-            request(creds: creds, completion: completion)
+            request(creds: creds) { result in
+                guard result.rejected else { completion(result.status); return }
+                // Refused before the local expiry: refresh this exact token
+                // once and retry before reporting a dead session.
+                resolveCredentials(proactiveWindow: 0, rejectedToken: creds.accessToken) { retry, problem, needsLogin in
+                    guard let retry else {
+                        completion(PlanStatus(gauges: [], subscription: nil,
+                                              error: problem, needsLogin: needsLogin))
+                        return
+                    }
+                    request(creds: retry) { completion($0.status) }
+                }
+            }
         }
     }
 
-    private static func isValid(_ c: OpenAIOAuth.Credentials) -> Bool {
-        c.expiresAt.map { $0 > Date().addingTimeInterval(60) } ?? true
-    }
-
-    private static func resolveCredentials(_ done: @escaping (OpenAIOAuth.Credentials?, String?, Bool) -> Void) {
+    private static func resolveCredentials(proactiveWindow: TimeInterval, rejectedToken: String?,
+                                           _ done: @escaping (OpenAIOAuth.Credentials?, String?, Bool) -> Void) {
         guard let stored = OpenAITokenStore.load() ?? CodexAuthFile.load() else {
             done(nil, L.t("no_session_sign_in_with_your_2"), true)
             return
         }
-        if isValid(stored) {
+        let rejected = rejectedToken == stored.accessToken
+        if !TokenPolicy.shouldRefresh(expiresAt: stored.expiresAt, proactiveWindow: proactiveWindow,
+                                      rejected: rejected) {
             done(stored, nil, false)   // fast path — no lock needed
             return
         }
+        let stillUsable = !rejected && TokenPolicy.isUsable(expiresAt: stored.expiresAt)
         guard stored.refreshToken != nil else {
-            done(nil, L.t("session_expired_sign_in_again"), true)
+            stillUsable ? done(stored, nil, false)
+                        : done(nil, L.t("session_expired_sign_in_again"), true)
             return
         }
-        // Expired: serialize the refresh across app and extensions.
+        // Expired: serialize the refresh across app and extension.
         DispatchQueue.global(qos: .userInitiated).async {
             let lock = TokenRefreshLock.acquire(OpenAITokenStore.service)
             guard let current = OpenAITokenStore.load() ?? CodexAuthFile.load() else {
@@ -257,31 +277,32 @@ public enum OpenAIUsageFetcher {
                 done(nil, L.t("session_expired_sign_in_again"), true)
                 return
             }
-            if isValid(current) {
+            let currentRejected = rejectedToken == current.accessToken
+            if !TokenPolicy.shouldRefresh(expiresAt: current.expiresAt, proactiveWindow: proactiveWindow,
+                                          rejected: currentRejected) {
                 TokenRefreshLock.release(lock)
                 done(current, nil, false)
                 return
             }
+            let currentUsable = !currentRejected && TokenPolicy.isUsable(expiresAt: current.expiresAt)
             guard let rt = current.refreshToken else {
                 TokenRefreshLock.release(lock)
-                done(nil, L.t("session_expired_sign_in_again"), true)
+                currentUsable ? done(current, nil, false)
+                              : done(nil, L.t("session_expired_sign_in_again"), true)
                 return
             }
             OpenAIOAuth.refresh(refreshToken: rt, accountID: current.accountID,
                                 email: current.email) { creds, error in
+                if let creds { OpenAITokenStore.save(creds) }
                 TokenRefreshLock.release(lock)
                 if let creds {
-                    AuthFailureTracker.clear(OpenAITokenStore.service)
                     done(creds, nil, false)
+                } else if currentUsable {
+                    // Proactive renewal failed; the current token still works.
+                    done(current, nil, false)
                 } else if OAuthError.isAuthFailure(error) {
-                    // See PlanFetcher: the paired watch shares this token family
-                    // and may have rotated our copy away, so a single rejection
-                    // is not a dead session.
-                    if AuthFailureTracker.record(OpenAITokenStore.service) {
-                        done(nil, L.t("session_expired_sign_in_again"), true)
-                    } else {
-                        done(nil, error ?? L.t("no_session"), false)
-                    }
+                    // Single refresher per token family: a rejection is real.
+                    done(nil, L.t("session_expired_sign_in_again"), true)
                 } else {
                     // Transient failure: keep the session, retry next cycle.
                     done(nil, error ?? L.t("no_session"), false)
@@ -290,8 +311,13 @@ public enum OpenAIUsageFetcher {
         }
     }
 
+    private struct UsageResult {
+        var status: PlanStatus
+        var rejected = false
+    }
+
     private static func request(creds: OpenAIOAuth.Credentials,
-                                completion: @escaping (PlanStatus) -> Void) {
+                                completion: @escaping (UsageResult) -> Void) {
         var req = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/usage")!)
         req.timeoutInterval = 15
         req.setValue("Bearer \(creds.accessToken)", forHTTPHeaderField: "Authorization")
@@ -301,43 +327,44 @@ public enum OpenAIUsageFetcher {
         req.setValue("application/json", forHTTPHeaderField: "Accept")
 
         URLSession.shared.dataTask(with: req) { data, resp, err in
-            var status = PlanStatus(subscription: creds.planType)
-            defer { completion(status) }
+            var result = UsageResult(status: PlanStatus(subscription: creds.planType))
+            defer { completion(result) }
             if let err {
-                status.error = err.localizedDescription
+                result.status.error = err.localizedDescription
                 return
             }
             guard let http = resp as? HTTPURLResponse else {
-                status.error = L.t("invalid_response")
+                result.status.error = L.t("invalid_response")
                 return
             }
             guard http.statusCode == 200 else {
                 if http.statusCode == 401 || http.statusCode == 403 {
-                    status.error = L.t("unauthorized_sign_in_again")
-                    status.needsLogin = true
+                    result.status.error = L.t("unauthorized_sign_in_again")
+                    result.status.needsLogin = true
+                    result.rejected = true
                 } else {
-                    status.error = "HTTP \(http.statusCode)"
+                    result.status.error = "HTTP \(http.statusCode)"
                 }
                 return
             }
             guard let data,
                   let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-                status.error = L.t("unexpected_json")
+                result.status.error = L.t("unexpected_json")
                 return
             }
             if let rl = RateLimitParsing.findRateLimits(in: obj) {
                 let parsed = RateLimitParsing.parseFull(rl)
-                status.gauges = parsed.gauges
-                status.subscription = parsed.planType
+                result.status.gauges = parsed.gauges
+                result.status.subscription = parsed.planType
                     ?? (obj["plan_type"] as? String)
                     ?? creds.planType
-                status.credits = parsed.credits
-                status.spendLimit = parsed.spendLimit
-                status.limitReachedReason = parsed.limitReachedReason
+                result.status.credits = parsed.credits
+                result.status.spendLimit = parsed.spendLimit
+                result.status.limitReachedReason = parsed.limitReachedReason
             }
-            status.accountEmail = creds.email
-            if status.gauges.isEmpty && !status.hasExtras {
-                status.error = L.t("no_limit_data")
+            result.status.accountEmail = creds.email
+            if result.status.gauges.isEmpty && !result.status.hasExtras {
+                result.status.error = L.t("no_limit_data")
             }
         }.resume()
     }

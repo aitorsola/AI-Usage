@@ -30,16 +30,21 @@ struct SnapshotProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<SnapshotEntry>) -> Void) {
         WidgetShared.recordPing(.timeline)
-        // App-driven: the always-running menu bar app writes the snapshot and
-        // reloads the timeline. (macOS can't share the keychain with the widget
-        // without a provisioning profile, so the widget can't self-fetch.)
-        let snapshot = WidgetShared.load() ?? .placeholder
-        // Acknowledge what we drew: the app only spends a reload while this
-        // disagrees with the snapshot it holds, so a request WidgetKit dropped
-        // gets made again instead of leaving the widget frozen for the day.
-        WidgetShared.recordRendered(snapshot)
-        let entry = SnapshotEntry(date: Date(), snapshot: snapshot)
-        completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(30 * 60))))
+        // Self-updating: the menu bar app's snapshot is reused while fresh;
+        // with the app closed the widget fetches the plan endpoints itself
+        // (CredentialStore keeps the tokens in the App Group container, where
+        // the sandboxed extension can read them). Local-log figures — today's
+        // cost line, the week bars — only exist while the app runs; a
+        // self-fetched snapshot simply has none. Mac widgets have no reload
+        // budget, so the timeline can turn over every few minutes.
+        WidgetRefresh.snapshot(timeout: 10) { snapshot, source in
+            // Acknowledge what we drew: the app only spends a reload while this
+            // disagrees with the snapshot it holds, so a request WidgetKit
+            // dropped gets made again instead of leaving the widget frozen.
+            WidgetShared.recordRendered(snapshot, source: source)
+            let entry = SnapshotEntry(date: Date(), snapshot: snapshot)
+            completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(5 * 60))))
+        }
     }
 }
 

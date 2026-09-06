@@ -21,9 +21,9 @@ Universal build (Apple Silicon + Intel), signed with a Developer ID certificate 
   - **OpenCode** — token usage and cost read from OpenCode's local database, broken down by model. OpenCode has no subscription, so there are no percentages — just tokens and cost (which OpenCode itself has already computed).
   - **DeepSeek** — prepaid API balance from DeepSeek's official endpoint, using an API key you paste in.
 - **Dashboard window** — per-provider tabs with today / current block / 7-day / 30-day cards, plan limit gauges, daily history bars, a per-project cost breakdown (each local session attributed to its Git repository root) and a per-model breakdown.
-- **Desktop widget** — a WidgetKit widget that mirrors the panel on your desktop or Notification Center, in three sizes: *small* shows your primary provider's session and weekly gauges with reset countdowns; *medium* keeps the first provider with today's cost and tokens; *large* mirrors the whole panel — every enabled provider plus the 7-day chart (shown only when the weekly section is on). Clicking any widget opens the dashboard (`aiusage://` deep link). App and widget share a ready-to-render snapshot through an App Group.
+- **Desktop widget** — a WidgetKit widget that mirrors the panel on your desktop or Notification Center, in three sizes: *small* shows your primary provider's session and weekly gauges with reset countdowns; *medium* keeps the first provider with today's cost and tokens; *large* mirrors the whole panel — every enabled provider plus the 7-day chart (shown only when the weekly section is on). Clicking any widget opens the dashboard (`aiusage://` deep link). App and widget share a ready-to-render snapshot through an App Group — and the widget is **self-updating**: with the menu bar app closed it fetches the plan limits itself every few minutes (local-log figures such as today's cost only appear while the app runs).
 - **iOS companion app** — an iPhone/iPad app (built from the same repo and shared core) that signs in with the same OAuth flows and shows live plan limits for Claude and OpenAI plus the DeepSeek balance. iOS has no local CLI logs, so token/cost history stays a macOS feature. Includes a **Home Screen widget** with the session and weekly gauges and their reset countdowns.
-- **Apple Watch app** — fully self-updating: the iPhone hands the credentials over once (WatchConnectivity, encrypted between paired devices — watchOS can't run the browser OAuth flows), and from then on the watch fetches plan limits on its own, on foreground and via periodic background refresh, so the complication stays fresh even with the phone away. Shows every signed-in provider with its session and weekly bars and reset info, following the remaining/used mode set in the host app. Plus a **fitness-rings style complication** for the first provider — session ring in the provider's color, weekly ring in gray, with two tiny center percentages color-matched to their ring so each quota is unmistakable.
+- **Apple Watch app** — fully self-updating, with a session of its own: from the iPhone you authorize a second time "for the watch", the grant is handed over once (WatchConnectivity, encrypted between paired devices — watchOS can't run the browser OAuth flows) and the iPhone forgets it. From then on the watch fetches plan limits on its own, on foreground and via periodic background refresh, so the complication stays fresh even with the phone away — and no device can ever invalidate another's session, since the providers rotate refresh tokens on every refresh. The iPhone shows each session's state on the watch (pending delivery, connected, expired) and offers to reconnect it. Shows every signed-in provider with its session and weekly bars and reset info, following the remaining/used mode set in the host app. Plus a **fitness-rings style complication** for the first provider — session ring in the provider's color, weekly ring in gray, with two tiny center percentages color-matched to their ring so each quota is unmistakable.
 - **Platform health at a glance** — a live status badge for Claude and OpenAI (operational / degraded / outage / maintenance), read from each provider's public status page and shown across the apps, every widget and the watch app.
 - **Plan extras, only when they exist** — Claude extra usage (monthly overage in dollars), OpenAI credits balance, individual spend limits, DeepSeek balance, and a red banner with the reason whenever a limit is hit. Empty data never renders empty UI, and the widgets surface a status note (signed out, fetch failed) instead of going silently blank.
 - **Three ways to connect**
@@ -66,11 +66,12 @@ The **Apple Watch app ships embedded in the iOS app** (or run the `AIUsageWatch`
 
 ## Tests
 
-Three layers, ~90 tests in total:
+Three layers, ~100 tests in total:
 
 ```sh
 # Cross-platform core (no Xcode needed): aggregation, pricing, formatters,
-# rate-limit parsing, OAuth/PKCE/JWT, localization consistency, widget snapshot.
+# rate-limit parsing, OAuth/PKCE/JWT, token refresh policy, watch handover
+# payloads, localization consistency, widget snapshot.
 cd AIUsageCore && swift test
 
 # macOS target: local log parsers (Claude transcripts, Codex sessions and an
@@ -100,15 +101,22 @@ Both schemes also run their suite from Xcode with **Cmd+U**.
 
 ### Authentication
 
-Claude and OpenAI use their public OAuth clients with the standard PKCE flow. Sign-in opens the browser; the authorization redirects back to a loopback server bound to the same port each CLI uses. Access/refresh tokens are stored under dedicated Keychain items (`AI Usage-credentials`, `AI Usage-openai-credentials`) and refreshed transparently before expiry. Signing out deletes the item. For OpenAI, if a plaintext `~/.codex/auth.json` exists (older Codex CLI versions), it is used as a fallback session.
+Claude and OpenAI use their public OAuth clients with the standard PKCE flow. Sign-in opens the browser; the authorization redirects back to a loopback server bound to the same port each CLI uses. Access/refresh tokens are stored under dedicated items (`AI Usage-credentials`, `AI Usage-openai-credentials`) and refreshed transparently before expiry. Signing out deletes the item. For OpenAI, if a plaintext `~/.codex/auth.json` exists (older Codex CLI versions), it is used as a fallback session.
 
-DeepSeek uses a personal API key (from `platform.deepseek.com`) stored in its own Keychain item (`AI Usage-deepseek-key`); it is only ever sent to DeepSeek to read your balance.
+Where those items live depends on the platform, because the widget/complication must be able to read them to refresh without the app:
+
+- **iOS / watchOS** — the data-protection Keychain, shared with the widget through a keychain access group.
+- **macOS** — a user-only (`0600`) file in the app's App Group container (`~/Library/Group Containers/group.dev.aitor.ai-usage/credentials/`). Keychain sharing is a restricted entitlement on macOS that the notarized Developer ID build can't carry, and a plain Keychain item is invisible to the sandboxed widget. Existing Keychain items are migrated over on first launch. This is the same protection level as `~/.codex/auth.json` or `~/.claude/.credentials.json`.
+
+**One token family per device.** Both providers rotate the refresh token on every refresh (it is single-use), so two devices sharing a session would race each other and eventually lose it. Each device therefore holds its own grant: the Mac and the iPhone sign in separately, and the Apple Watch gets a grant of its own — the iPhone runs the authorization a second time on its behalf, parks the result, hands it over once and drops its copy as soon as the watch confirms. Within a device, the app and its widget serialize refreshes through a cross-process lock in the App Group container; the app also renews tokens a couple of hours ahead of expiry so the extension rarely has to. A `401` before the local expiry triggers one forced refresh of that token before the session is reported as expired.
+
+DeepSeek uses a personal API key (from `platform.deepseek.com`) stored in its own item (`AI Usage-deepseek-key`); it is only ever sent to DeepSeek to read your balance. The key doesn't rotate, so the iPhone simply sends it to the watch on request.
 
 OpenCode requires no authentication — its usage lives in a local SQLite database, opened read-only.
 
 ### Privacy
 
-Everything runs locally. The only network requests are the usage/profile/balance calls to Anthropic, OpenAI and DeepSeek described above, authenticated with your own session or key. No analytics, no telemetry, no third-party services.
+Everything runs locally. The only network requests are the usage/profile/balance calls to Anthropic, OpenAI and DeepSeek described above (plus the token refreshes they need), authenticated with your own session or key. No analytics, no telemetry, no third-party services.
 
 ## Project layout
 
@@ -134,6 +142,11 @@ Everything runs locally. The only network requests are the usage/profile/balance
 │   │   │   └── DeepSeek/
 │   │   │       └── DeepSeekAuth.swift   # API key store + balance endpoint
 │   │   ├── Aggregator.swift             # Rolls parsed entries into periods and totals
+│   │   ├── CredentialStore.swift        # Token/key storage readable by app + extension
+│   │   ├── TokenPolicy.swift            # When to refresh (expiry, proactive, rejected)
+│   │   ├── TokenRefreshLock.swift       # Cross-process refresh lock (App Group flock)
+│   │   ├── WatchBridge.swift            # Watch handover payloads + network snapshot builder
+│   │   ├── WidgetRefresh.swift          # Extension-side self-fetch with fallback
 │   │   ├── Pricing.swift                # Per-model price tables
 │   │   ├── Support/
 │   │   │   └── Formatters.swift         # Number, date and cost formatting
@@ -165,7 +178,7 @@ Everything runs locally. The only network requests are the usage/profile/balance
 │   ├── AIUsageiOSApp.swift              # App entry point + provider list UI
 │   ├── UsageStoreiOS.swift              # Network-only store + widget snapshot
 │   ├── AuthCoordinator.swift            # OAuth via ASWebAuthenticationSession
-│   ├── WatchSync.swift                  # Hands snapshot + credentials to the watch (WCSession)
+│   ├── WatchSync.swift                  # Hands the watch its own grant; pushes snapshots (WCSession)
 │   └── Assets.xcassets                  # iOS app icon
 ├── iOSWidget/
 │   └── AIUsageiOSWidget.swift       # Home Screen widget (small / medium / large)

@@ -7,10 +7,16 @@
 
 import Foundation
 
-// Credentials handed from the iPhone to the watch over WatchConnectivity (an
-// encrypted channel between paired devices). The watch cannot run the browser
-// OAuth flows itself, so it receives the tokens once and from then on fetches
-// plan limits on its own, storing them in its local Keychain.
+// The Apple Watch owns its OWN OAuth grant. The providers rotate refresh
+// tokens on every refresh (single-use), so two devices sharing one token
+// family can only race each other: whoever refreshed second was handed a
+// rejection for a token the peer had just spent, and stale-token reuse can
+// take the whole family down. The phone therefore authorizes a second time on
+// the watch's behalf (watchOS cannot run the browser flow), parks the result
+// under the watch service, hands it over ONCE through WatchConnectivity (an
+// encrypted channel between paired devices) and forgets it as soon as the
+// watch confirms receipt. From then on the watch refreshes on its own —
+// app and complication, coordinated by the same cross-process lock.
 public struct WatchCredentials: Codable {
     public struct Anthropic: Codable {
         public var access: String
@@ -39,87 +45,97 @@ public struct WatchCredentials: Codable {
 
     public var isEmpty: Bool { anthropic == nil && openAI == nil && deepSeekKey == nil }
 
-    // Identity of the long-lived secrets: changes on a login, a logout and a
-    // rotated refresh token, but not on a plain access-token refresh. Only ever
-    // compared within one process lifetime (String hashing is seeded per
-    // launch), so it must not be persisted.
-    public var identity: Int {
-        "\(anthropic?.refresh ?? "")|\(openAI?.refresh ?? "")|\(deepSeekKey ?? "")".hashValue
+    /// Providers carried by this payload.
+    public var kinds: Set<ProviderKind> {
+        var out: Set<ProviderKind> = []
+        if anthropic != nil { out.insert(.anthropic) }
+        if openAI != nil { out.insert(.openAI) }
+        if deepSeekKey != nil { out.insert(.deepSeek) }
+        return out
     }
 
-    // The credentials currently stored on this device (phone side).
-    public static func current() -> WatchCredentials {
+    /// What the phone has parked for the watch and not yet delivered: the
+    /// watch's own OAuth grants, plus the DeepSeek key (an API key does not
+    /// rotate, so the phone simply shares its own).
+    public static func pendingHandover(_ kinds: Set<ProviderKind>) -> WatchCredentials {
         WatchCredentials(
-            anthropic: AnthropicTokenStore.load().map {
-                Anthropic(access: $0.accessToken, refresh: $0.refreshToken, expiresAt: $0.expiresAt)
-            },
-            openAI: OpenAITokenStore.load().map {
-                OpenAI(access: $0.accessToken, refresh: $0.refreshToken, expiresAt: $0.expiresAt,
-                       accountID: $0.accountID, planType: $0.planType, email: $0.email)
-            },
-            deepSeekKey: DeepSeekKeyStore.load())
+            anthropic: kinds.contains(.anthropic)
+                ? AnthropicTokenStore.load(service: AnthropicTokenStore.watchService).map {
+                    Anthropic(access: $0.accessToken, refresh: $0.refreshToken, expiresAt: $0.expiresAt)
+                } : nil,
+            openAI: kinds.contains(.openAI)
+                ? OpenAITokenStore.load(service: OpenAITokenStore.watchService).map {
+                    OpenAI(access: $0.accessToken, refresh: $0.refreshToken, expiresAt: $0.expiresAt,
+                           accountID: $0.accountID, planType: $0.planType, email: $0.email)
+                } : nil,
+            deepSeekKey: kinds.contains(.deepSeek) ? DeepSeekKeyStore.load() : nil)
     }
 
-    // Store into this device's Keychain (watch side), mirroring the phone:
-    // signing out on the phone signs the watch out too.
-    public func apply() {
+    /// Phone side, after the watch acknowledged: the parked grant is the
+    /// watch's now and must never be refreshed from here.
+    public static func discardParked(_ kinds: Set<ProviderKind>) {
+        if kinds.contains(.anthropic) { AnthropicTokenStore.delete(service: AnthropicTokenStore.watchService) }
+        if kinds.contains(.openAI) { OpenAITokenStore.delete(service: OpenAITokenStore.watchService) }
+    }
+
+    /// Watch side: store what arrived as this device's session. Only the
+    /// providers present are written — a handover of one provider never
+    /// touches the others; removal is an explicit `signOut`.
+    public func install() {
         if let a = anthropic {
             AnthropicTokenStore.save(AnthropicOAuth.OwnCredentials(
                 accessToken: a.access, refreshToken: a.refresh, expiresAt: a.expiresAt))
-        } else {
-            AnthropicTokenStore.delete()
         }
         if let o = openAI {
             OpenAITokenStore.save(OpenAIOAuth.Credentials(
                 accessToken: o.access, refreshToken: o.refresh, expiresAt: o.expiresAt,
                 accountID: o.accountID, planType: o.planType, email: o.email))
-        } else {
-            OpenAITokenStore.delete()
         }
         if let key = deepSeekKey {
             DeepSeekKeyStore.save(key)
-        } else {
-            DeepSeekKeyStore.delete()
         }
     }
 
-    // Merge credentials received FROM the paired device. Unlike `apply()` this
-    // is never destructive: the peer may hold fewer providers than we do, and
-    // a missing one must not wipe a working session here.
-    //
-    // A provider is overwritten only when the incoming copy is strictly fresher
-    // — which is exactly the case that matters: the peer refreshed, the shared
-    // refresh token rotated, and our copy is now dead. Recovering from that is
-    // what stops a rotation on one device from forcing a re-login on the other.
-    @discardableResult
-    public func merge() -> Bool {
-        var changed = false
-        if let a = anthropic, Self.isFresher(a.expiresAt, than: AnthropicTokenStore.load()?.expiresAt) {
-            AnthropicTokenStore.save(AnthropicOAuth.OwnCredentials(
-                accessToken: a.access, refreshToken: a.refresh, expiresAt: a.expiresAt))
-            AuthFailureTracker.clear(AnthropicTokenStore.service)
-            changed = true
-        }
-        if let o = openAI, Self.isFresher(o.expiresAt, than: OpenAITokenStore.load()?.expiresAt) {
-            OpenAITokenStore.save(OpenAIOAuth.Credentials(
-                accessToken: o.access, refreshToken: o.refresh, expiresAt: o.expiresAt,
-                accountID: o.accountID, planType: o.planType, email: o.email))
-            AuthFailureTracker.clear(OpenAITokenStore.service)
-            changed = true
-        }
-        // A DeepSeek API key does not rotate, so it is only ever filled in.
-        if let key = deepSeekKey, DeepSeekKeyStore.load() == nil {
-            DeepSeekKeyStore.save(key)
-            changed = true
-        }
-        return changed
+    /// Watch side: drop the named providers' sessions.
+    public static func signOut(_ kinds: Set<ProviderKind>) {
+        if kinds.contains(.anthropic) { AnthropicTokenStore.delete() }
+        if kinds.contains(.openAI) { OpenAITokenStore.delete() }
+        if kinds.contains(.deepSeek) { DeepSeekKeyStore.delete() }
+    }
+}
+
+/// The WatchConnectivity vocabulary shared by both apps. Everything travels as
+/// user-info transfers (queued, delivered once, launching the receiving app in
+/// the background if needed) except the display snapshot, which also rides
+/// the persisted application context — it is not secret.
+public enum WatchLink {
+    /// Phone → watch: `WatchCredentials` (JSON) plus a `handover` id.
+    public static let credentials = "credentials"
+    public static let handover = "handover"
+    /// Watch → phone: the `handover` id it installed, plus the `kinds` taken.
+    public static let credentialsAck = "credentialsAck"
+    public static let kinds = "kinds"
+    /// Phone → watch: provider raw values to sign out of.
+    public static let signOut = "signOut"
+    /// Watch → phone: `[kind.rawValue: "ok" | "expired"]` for every provider
+    /// the watch holds credentials for, sent after each refresh whose
+    /// outcome changed.
+    public static let watchStatus = "watchStatus"
+    /// Phone → watch: the phone's rendered `WidgetSnapshot` (JSON).
+    public static let snapshot = "snapshot"
+
+    public static func encodeKinds(_ kinds: Set<ProviderKind>) -> [String] {
+        kinds.map(\.rawValue).sorted()
     }
 
-    static func isFresher(_ incoming: Date?, than stored: Date?) -> Bool {
-        guard let incoming else { return false }
-        guard let stored else { return true }
-        return incoming > stored
+    public static func decodeKinds(_ raw: Any?) -> Set<ProviderKind> {
+        Set((raw as? [String] ?? []).compactMap(ProviderKind.init(rawValue:)))
     }
+}
+
+/// What the watch reports about each session it holds.
+public enum WatchSessionState: String, Codable {
+    case ok, expired
 }
 
 // Builds the network-only widget snapshot shared by the iPhone app and the
@@ -127,7 +143,7 @@ public struct WatchCredentials: Codable {
 // remaining/used mode the host app dictates.
 public enum SnapshotBuilder {
     // `credentialed` lists the providers with credentials stored on THIS
-    // device. Passed in (instead of read from the Keychain here) so callers
+    // device. Passed in (instead of read from the store here) so callers
     // decide and tests stay deterministic.
     public static func network(anthropic: PlanStatus, openAI: PlanStatus, deepSeek: PlanStatus,
                                credentialed: Set<ProviderKind> = [],
@@ -164,5 +180,17 @@ public enum SnapshotBuilder {
         return WidgetSnapshot(providers: providers, showRemaining: showRemaining,
                               weekTitle: "", weekBars: [],
                               updatedText: Formatters.time(updated), date: updated)
+    }
+}
+
+public extension WidgetSnapshot {
+    /// The snapshot restricted to the named providers — what the watch keeps
+    /// of a phone push, so a provider the watch holds no session for never
+    /// flickers in and out between the phone's numbers and its own.
+    func restricted(to kinds: Set<ProviderKind>) -> WidgetSnapshot {
+        let names = Set(kinds.map(\.name))
+        var copy = self
+        copy.providers = providers.filter { names.contains($0.name) }
+        return copy
     }
 }

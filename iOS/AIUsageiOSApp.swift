@@ -8,8 +8,21 @@
 import SwiftUI
 import AIUsageCore
 
+// WatchConnectivity launches the app in the background to deliver what the
+// watch sends (handover acknowledgements, session status). The session must be
+// active by then — a view's state object is not guaranteed to exist in such a
+// launch, so activation happens here.
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        WatchSync.shared.activate()
+        return true
+    }
+}
+
 @main
 struct AIUsageiOSApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var store = UsageStoreiOS()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -199,6 +212,7 @@ private struct OAuthSection: View {
 
 private struct SettingsSheet: View {
     @EnvironmentObject private var store: UsageStoreiOS
+    @ObservedObject private var watchSync = WatchSync.shared
     @Environment(\.dismiss) private var dismiss
     @AppStorage(SettingsKeys.limitDisplay) private var limitDisplay = LimitDisplay.remaining.rawValue
     @State private var deepSeekKey = ""
@@ -245,6 +259,22 @@ private struct SettingsSheet: View {
                         }
                     }
                 }
+
+                if watchSync.isWatchAvailable {
+                    Section {
+                        WatchRow(kind: .anthropic, state: watchSync.link[.anthropic] ?? .none,
+                                 login: store.anthropicWatchLogin)
+                        WatchRow(kind: .openAI, state: watchSync.link[.openAI] ?? .none,
+                                 login: store.openAIWatchLogin)
+                        if DeepSeekKeyStore.load() != nil {
+                            WatchRow(kind: .deepSeek, state: watchSync.link[.deepSeek] ?? .none, login: nil)
+                        }
+                    } header: {
+                        Text(L.t("apple_watch"))
+                    } footer: {
+                        Text(L.t("watch_explanation"))
+                    }
+                }
             }
             .navigationTitle("AI Usage")
             .navigationBarTitleDisplayMode(.inline)
@@ -256,6 +286,86 @@ private struct SettingsSheet: View {
                     Button { dismiss() } label: { Image(systemName: "xmark.circle.fill") }
                 }
             }
+        }
+    }
+}
+
+// One provider's session on the watch: its state as the watch last reported
+// it, and the action that follows — connect (a second authorization, handed
+// over), or disconnect. DeepSeek has no login: the phone's key is sent as is.
+private struct WatchRow: View {
+    let kind: ProviderKind
+    let state: WatchLinkState
+    let login: ProviderLogin?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 7) {
+                Circle().fill(kind.brand).frame(width: 9, height: 9)
+                Text(kind.name)
+                Spacer()
+                Text(stateLabel)
+                    .font(.caption)
+                    .foregroundStyle(stateColor)
+                    .multilineTextAlignment(.trailing)
+            }
+            switch state {
+            case .connected, .pending:
+                Button(L.t("disconnect_from_watch"), role: .destructive) {
+                    WatchSync.shared.disconnect(kind)
+                }
+                .font(.callout)
+            case .none, .expired:
+                if let login {
+                    Button(String(format: L.t("connect_on_watch"), kind.name)) { login.begin() }
+                        .font(.callout)
+                        .tint(kind.brand)
+                    LoginProgress(login: login)
+                } else {
+                    Button(L.t("send_key_to_watch")) { WatchSync.shared.handOver(kind) }
+                        .font(.callout)
+                        .tint(kind.brand)
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var stateLabel: String {
+        switch state {
+        case .none: return L.t("watch_not_connected")
+        case .pending: return L.t("watch_pending_delivery")
+        case .connected: return L.t("watch_connected")
+        case .expired: return L.t("watch_session_expired")
+        }
+    }
+
+    private var stateColor: Color {
+        switch state {
+        case .connected: return .secondary
+        case .pending: return .orange
+        case .expired: return .red
+        case .none: return .secondary
+        }
+    }
+}
+
+private struct LoginProgress: View {
+    @ObservedObject var login: ProviderLogin
+
+    var body: some View {
+        switch login.phase {
+        case .waiting:
+            Label(L.t("waiting_for_browser_authorization"), systemImage: "safari")
+                .font(.caption).foregroundStyle(.secondary)
+        case .exchanging:
+            Label(L.t("exchanging_the_code_for_a_session"), systemImage: "arrow.triangle.2.circlepath")
+                .font(.caption).foregroundStyle(.secondary)
+        case .failed(let message):
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .font(.caption).foregroundStyle(.orange)
+        case .idle:
+            EmptyView()
         }
     }
 }

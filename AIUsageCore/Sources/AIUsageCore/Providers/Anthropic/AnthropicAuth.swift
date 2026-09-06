@@ -61,6 +61,11 @@ public enum AnthropicOAuth {
         post(body: body, completion: completion)
     }
 
+    // Returns the renewed credentials WITHOUT storing them: the caller saves
+    // under the cross-process refresh lock, which is what makes the rotated
+    // refresh token visible to the next process before the lock is released.
+    // The provider does not always echo a refresh token back; keep the one we
+    // have in that case rather than losing the session.
     static func refresh(refreshToken: String, completion: @escaping (OwnCredentials?, String?) -> Void) {
         let body: [String: Any] = [
             "grant_type": "refresh_token",
@@ -69,11 +74,9 @@ public enum AnthropicOAuth {
         ]
         post(body: body) { creds, error in
             if let creds, creds.refreshToken == nil {
-                let kept = OwnCredentials(accessToken: creds.accessToken,
+                completion(OwnCredentials(accessToken: creds.accessToken,
                                           refreshToken: refreshToken,
-                                          expiresAt: creds.expiresAt)
-                AnthropicTokenStore.save(kept)
-                completion(kept, nil)
+                                          expiresAt: creds.expiresAt), nil)
             } else {
                 completion(creds, error)
             }
@@ -104,9 +107,7 @@ public enum AnthropicOAuth {
             let expires = (obj["expires_in"] as? NSNumber).map {
                 Date().addingTimeInterval($0.doubleValue)
             }
-            let creds = OwnCredentials(accessToken: access, refreshToken: refresh, expiresAt: expires)
-            AnthropicTokenStore.save(creds)
-            completion(creds, nil)
+            completion(OwnCredentials(accessToken: access, refreshToken: refresh, expiresAt: expires), nil)
         }.resume()
     }
 
@@ -119,10 +120,14 @@ public enum AnthropicOAuth {
 }
 
 public enum AnthropicTokenStore {
-    static let service = "AI Usage-credentials"
+    /// This device's own session.
+    public static let service = "AI Usage-credentials"
+    /// The Apple Watch's own session, parked on the iPhone only until the
+    /// watch confirms it received it. Never refreshed from the phone.
+    public static let watchService = "AI Usage-credentials-watch"
 
-    public static func load() -> AnthropicOAuth.OwnCredentials? {
-        guard let data = Keychain.load(service: service),
+    public static func load(service: String = service) -> AnthropicOAuth.OwnCredentials? {
+        guard let data = CredentialStore.load(service: service),
               let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let token = obj["accessToken"] as? String, !token.isEmpty
         else { return nil }
@@ -134,16 +139,16 @@ public enum AnthropicTokenStore {
                                              expiresAt: expires)
     }
 
-    public static func save(_ creds: AnthropicOAuth.OwnCredentials) {
+    public static func save(_ creds: AnthropicOAuth.OwnCredentials, service: String = service) {
         var payload: [String: Any] = ["accessToken": creds.accessToken]
         if let r = creds.refreshToken { payload["refreshToken"] = r }
         if let e = creds.expiresAt { payload["expiresAt"] = e.timeIntervalSince1970 * 1000 }
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
-        Keychain.save(data, service: service)
+        CredentialStore.save(data, service: service)
     }
 
-    public static func delete() {
-        Keychain.delete(service: service)
+    public static func delete(service: String = service) {
+        CredentialStore.delete(service: service)
     }
 }
 
@@ -153,9 +158,19 @@ public struct OAuthFlowConfig {
     public let callbackPath: String
     public let localRedirect: String
     public let manualRedirect: String?
+    /// True when the grant being obtained is the Apple Watch's own session:
+    /// it is parked under the watch service and handed over, never used here.
+    public var forWatch = false
     public let makeAuthorizeURL: (_ verifier: String, _ redirect: String) -> URL
     public let exchange: (_ code: String, _ state: String?, _ redirect: String, _ verifier: String,
-                   _ completion: @escaping (Bool, String?) -> Void) -> Void
+                   _ forWatch: Bool, _ completion: @escaping (Bool, String?) -> Void) -> Void
+
+    /// The same flow, storing its result as the Apple Watch's session.
+    public var forWatchHandover: OAuthFlowConfig {
+        var copy = self
+        copy.forWatch = true
+        return copy
+    }
 
     public static let anthropic = OAuthFlowConfig(
         kind: .anthropic,
@@ -166,9 +181,13 @@ public struct OAuthFlowConfig {
         makeAuthorizeURL: { verifier, redirect in
             AnthropicOAuth.authorizeURL(verifier: verifier, redirect: redirect)
         },
-        exchange: { code, state, redirect, verifier, done in
+        exchange: { code, state, redirect, verifier, forWatch, done in
             AnthropicOAuth.exchange(code: code, state: state, redirect: redirect,
                                     verifier: verifier) { creds, error in
+                if let creds {
+                    AnthropicTokenStore.save(creds, service: forWatch ? AnthropicTokenStore.watchService
+                                                                      : AnthropicTokenStore.service)
+                }
                 done(creds != nil, error)
             }
         })
@@ -182,8 +201,12 @@ public struct OAuthFlowConfig {
         makeAuthorizeURL: { verifier, _ in
             OpenAIOAuth.authorizeURL(verifier: verifier)
         },
-        exchange: { code, _, _, verifier, done in
+        exchange: { code, _, _, verifier, forWatch, done in
             OpenAIOAuth.exchange(code: code, verifier: verifier) { creds, error in
+                if let creds {
+                    OpenAITokenStore.save(creds, service: forWatch ? OpenAITokenStore.watchService
+                                                                   : OpenAITokenStore.service)
+                }
                 done(creds != nil, error)
             }
         })
@@ -257,7 +280,7 @@ public final class LoginFlowController: ObservableObject {
     private func finish(code: String, state: String?) {
         cancelListener()
         DispatchQueue.main.async { self.stage = .exchanging }
-        config.exchange(code, state, redirect, verifier) { ok, error in
+        config.exchange(code, state, redirect, verifier, config.forWatch) { ok, error in
             DispatchQueue.main.async {
                 if ok {
                     self.stage = .success

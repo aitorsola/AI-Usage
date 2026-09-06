@@ -10,9 +10,11 @@ import Foundation
 // Lets a widget/complication extension refresh WITHOUT the host app: it reuses
 // the app-written snapshot when it is fresh, and otherwise fetches the provider
 // endpoints itself (Weather-widget style). The extension reaches the tokens
-// through the keychain access group it shares with the app. Requires the
-// iOS/watchOS keychain-sharing entitlement; on macOS the always-running menu
-// bar app drives the widget instead, so this is not used there.
+// through CredentialStore — the shared keychain access group on iOS/watchOS,
+// the App Group container on macOS — and refreshes them under the same
+// cross-process lock as the app, never proactively (proactiveWindow 0): the
+// app renews hours ahead, so the extension only ever refreshes what already
+// expired while the app was closed.
 public enum WidgetRefresh {
     // Providers whose credentials are readable on THIS device.
     public static func credentialedProviders() -> Set<ProviderKind> {

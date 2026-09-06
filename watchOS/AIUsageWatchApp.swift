@@ -45,18 +45,21 @@ struct AIUsageWatchApp: App {
     }
 }
 
-// The watch fetches plan limits on its own using credentials handed over once
-// by the iPhone (it cannot run the browser OAuth flows itself). Phone pushes
-// still land instantly when both apps are alive; between pushes the watch
-// refreshes independently — on foreground and via background app refresh.
+// The watch fetches plan limits on its own with OAuth grants of its OWN,
+// obtained by the iPhone on its behalf and handed over once (watchOS cannot
+// run the browser flows). Nobody else refreshes them, so a rotated refresh
+// token can never be spent twice. Phone snapshot pushes still land instantly
+// when both apps are alive; between pushes the watch refreshes independently —
+// on foreground and via background app refresh — and reports the state of
+// each session back so the phone can offer to reconnect a dead one.
 final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
     @Published var snapshot: WidgetSnapshot?
 
     private var refreshing = false
     private var refreshGeneration = 0
-    private var lastCredentialIdentity: Int?
     private var lastReloadRequestedAt: Date?
     private var lastRequestedDigest: String?
+    private var lastReportedStatus: [String: String]?
 
     // A fetch that never calls back must not pin `refreshing` forever: that is
     // exactly what a blocked cross-process token lock did, and from then on
@@ -66,9 +69,23 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
     private static let refreshWatchdog: TimeInterval = 45
     // How long before a reload WidgetKit ignored is asked for again.
     private static let reloadRetryFloor: TimeInterval = 300
+    // Renew tokens this far ahead from the app (foreground and background
+    // refresh), so the complication — which only refreshes what already
+    // expired — almost never has to hold the refresh lock itself.
+    private static let proactiveRefresh: TimeInterval = 2 * 3600
+
+    // Builds before 22 gave the watch a COPY of the iPhone's session, and both
+    // devices refreshed it. That copy must go the first time this build runs:
+    // left in place it would keep spending the phone's (single-use) refresh
+    // tokens. The DeepSeek key is not a session and stays.
+    private static let ownGrantMigrationKey = "migratedToOwnGrant"
 
     override init() {
         super.init()
+        if !UserDefaults.standard.bool(forKey: Self.ownGrantMigrationKey) {
+            WatchCredentials.signOut([.anthropic, .openAI])
+            UserDefaults.standard.set(true, forKey: Self.ownGrantMigrationKey)
+        }
         snapshot = WidgetShared.load()
         // Every launch re-books the chain — including background launches
         // (a complication push waking the app) and the first run after a
@@ -81,9 +98,14 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
 
     // MARK: - Independent fetch
 
-    var hasCredentials: Bool {
-        AnthropicTokenStore.load() != nil || OpenAITokenStore.load() != nil
-            || DeepSeekKeyStore.load() != nil
+    var hasCredentials: Bool { !Self.credentialed().isEmpty }
+
+    private static func credentialed() -> Set<ProviderKind> {
+        var out: Set<ProviderKind> = []
+        if AnthropicTokenStore.load() != nil { out.insert(.anthropic) }
+        if OpenAITokenStore.load() != nil { out.insert(.openAI) }
+        if DeepSeekKeyStore.load() != nil { out.insert(.deepSeek) }
+        return out
     }
 
     func refresh(completion: (() -> Void)? = nil) {
@@ -106,27 +128,26 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
         var claude = PlanStatus(needsLogin: true)
         var openAI = PlanStatus(needsLogin: true)
         var deepSeek = PlanStatus(needsLogin: true)
-        if AnthropicTokenStore.load() != nil {
-            group.enter(); PlanFetcher.fetch { claude = $0; group.leave() }
+        let held = Self.credentialed()
+        if held.contains(.anthropic) {
+            group.enter(); PlanFetcher.fetch(proactiveWindow: Self.proactiveRefresh) { claude = $0; group.leave() }
         }
-        if OpenAITokenStore.load() != nil {
-            group.enter(); OpenAIUsageFetcher.fetch { openAI = $0; group.leave() }
+        if held.contains(.openAI) {
+            group.enter(); OpenAIUsageFetcher.fetch(proactiveWindow: Self.proactiveRefresh) { openAI = $0; group.leave() }
         }
-        if DeepSeekKeyStore.load() != nil {
+        if held.contains(.deepSeek) {
             group.enter(); DeepSeekFetcher.fetch { deepSeek = $0; group.leave() }
         }
         group.notify(queue: .main) {
             settle {
                 let showRemaining = (UserDefaults.standard.string(forKey: SettingsKeys.limitDisplay)
                     ?? LimitDisplay.remaining.rawValue) != LimitDisplay.used.rawValue
-                var credentialed: Set<ProviderKind> = []
-                if AnthropicTokenStore.load() != nil { credentialed.insert(.anthropic) }
-                if OpenAITokenStore.load() != nil { credentialed.insert(.openAI) }
-                if DeepSeekKeyStore.load() != nil { credentialed.insert(.deepSeek) }
+                let credentialed = Self.credentialed()
                 self.show(SnapshotBuilder.network(anthropic: claude, openAI: openAI,
                                                   deepSeek: deepSeek, credentialed: credentialed,
                                                   showRemaining: showRemaining))
-                self.syncCredentialsToPhone()
+                self.reportStatus([.anthropic: claude, .openAI: openAI, .deepSeek: deepSeek],
+                                  credentialed: credentialed)
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.refreshWatchdog) {
@@ -155,21 +176,19 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
         }
     }
 
-    // The watch refreshes its own tokens, and the provider rotates the refresh
-    // token when it does — leaving the iPhone holding a copy that is now dead.
-    // Hand the rotated credentials back so the phone recovers silently instead
-    // of asking the user to sign in again.
-    private func syncCredentialsToPhone() {
-        guard WCSession.isSupported() else { return }
-        let session = WCSession.default
-        guard session.activationState == .activated else { return }
-        let creds = WatchCredentials.current()
-        guard !creds.isEmpty else { return }
-        let identity = creds.identity
-        guard identity != lastCredentialIdentity,
-              let data = try? JSONEncoder().encode(creds) else { return }
-        lastCredentialIdentity = identity
-        session.transferUserInfo(["credentials": data])
+    // Tell the phone how each session held here is doing, whenever that
+    // changes: it is the only way the phone learns that a watch grant died
+    // (its refresh token was rejected) and can offer to hand over a new one.
+    private func reportStatus(_ plans: [ProviderKind: PlanStatus], credentialed: Set<ProviderKind>) {
+        var status: [String: String] = [:]
+        for kind in credentialed {
+            let dead = plans[kind]?.needsLogin ?? false
+            status[kind.rawValue] = (dead ? WatchSessionState.expired : .ok).rawValue
+        }
+        guard status != lastReportedStatus else { return }
+        guard WCSession.isSupported(), WCSession.default.activationState == .activated else { return }
+        lastReportedStatus = status
+        WCSession.default.transferUserInfo([WatchLink.watchStatus: status])
     }
 
     static func scheduleBackgroundRefresh() {
@@ -182,28 +201,59 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
 
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState,
                  error: Error?) {
-        apply(session.receivedApplicationContext)
+        let context = session.receivedApplicationContext
+        DispatchQueue.main.async { self.apply(context) }
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        apply(applicationContext)
+        DispatchQueue.main.async { self.apply(applicationContext) }
     }
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        apply(userInfo)
+        DispatchQueue.main.async { self.apply(userInfo) }
     }
 
+    // Always on the main queue: it touches the store's state and the
+    // credential store together.
     private func apply(_ payload: [String: Any]) {
-        if let credData = payload["credentials"] as? Data,
-           let creds = try? JSONDecoder().decode(WatchCredentials.self, from: credData) {
-            creds.apply()
-            // Remember what we just stored so the next refresh doesn't bounce
-            // the phone's own credentials straight back to it.
-            lastCredentialIdentity = WatchCredentials.current().identity
+        // A handover: install the grant(s) as this device's own sessions and
+        // acknowledge, so the phone drops its parked copy and never refreshes
+        // it. Then fetch right away — the rings should not wait 30 minutes.
+        if let credData = payload[WatchLink.credentials] as? Data,
+           let creds = try? JSONDecoder().decode(WatchCredentials.self, from: credData),
+           !creds.isEmpty {
+            creds.install()
+            lastReportedStatus = nil
+            if WCSession.default.activationState == .activated {
+                WCSession.default.transferUserInfo([
+                    WatchLink.credentialsAck: (payload[WatchLink.handover] as? String) ?? "",
+                    WatchLink.kinds: WatchLink.encodeKinds(creds.kinds),
+                ])
+            }
+            refresh()
         }
-        guard let data = payload["snapshot"] as? Data,
+        let signOut = WatchLink.decodeKinds(payload[WatchLink.signOut])
+        if !signOut.isEmpty {
+            WatchCredentials.signOut(signOut)
+            lastReportedStatus = nil
+            if hasCredentials {
+                refresh()
+            } else {
+                snapshot = nil
+                WidgetShared.save(WidgetSnapshot(providers: [], showRemaining: true, weekTitle: "",
+                                                 weekBars: [], updatedText: "", date: Date()))
+                WidgetCenter.shared.reloadAllTimelines()
+            }
+        }
+        // The phone's rendered snapshot is a bonus while both apps are alive.
+        // Keep only the providers this watch holds a session for, so a
+        // provider the phone has and the watch does not never flickers in
+        // and out between the phone's numbers and the watch's own fetches.
+        guard let data = payload[WatchLink.snapshot] as? Data,
               let snap = try? JSONDecoder().decode(WidgetSnapshot.self, from: data) else { return }
-        DispatchQueue.main.async { self.show(snap) }
+        let held = Self.credentialed()
+        guard !held.isEmpty else { return }
+        show(snap.restricted(to: held))
     }
 
     private func show(_ snap: WidgetSnapshot) {
@@ -259,7 +309,7 @@ struct WatchRootView: View {
                         Image(systemName: "asterisk")
                             .font(.title3)
                             .foregroundStyle(Color(hex: "#D97757"))
-                        Text(L.t("open_iphone_app"))
+                        Text(L.t("connect_from_iphone"))
                             .font(.footnote)
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.secondary)

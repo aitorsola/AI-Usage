@@ -9,10 +9,10 @@ import Foundation
 import Security
 
 public enum DeepSeekKeyStore {
-    static let service = "AI Usage-deepseek-key"
+    public static let service = "AI Usage-deepseek-key"
 
     public static func load() -> String? {
-        guard let data = Keychain.load(service: service),
+        guard let data = CredentialStore.load(service: service),
               let key = String(data: data, encoding: .utf8), !key.isEmpty
         else { return nil }
         return key
@@ -21,11 +21,11 @@ public enum DeepSeekKeyStore {
     public static func save(_ key: String) {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else { return }
-        Keychain.save(data, service: service)
+        CredentialStore.save(data, service: service)
     }
 
     public static func delete() {
-        Keychain.delete(service: service)
+        CredentialStore.delete(service: service)
     }
 }
 
