@@ -85,8 +85,11 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
         if !UserDefaults.standard.bool(forKey: Self.ownGrantMigrationKey) {
             WatchCredentials.signOut([.anthropic, .openAI])
             UserDefaults.standard.set(true, forKey: Self.ownGrantMigrationKey)
+            // The old snapshot would keep the rings frozen on the last
+            // numbers of the removed session; show the real state instead.
+            if !hasCredentials { clearSnapshot() }
         }
-        snapshot = WidgetShared.load()
+        snapshot = hasCredentials ? WidgetShared.load() : nil
         // Every launch re-books the chain — including background launches
         // (a complication push waking the app) and the first run after a
         // reboot, which clears previously scheduled refreshes.
@@ -109,7 +112,12 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
     }
 
     func refresh(completion: (() -> Void)? = nil) {
-        guard !refreshing, hasCredentials else { completion?(); return }
+        guard hasCredentials else {
+            if snapshot != nil { clearSnapshot() }
+            completion?()
+            return
+        }
+        guard !refreshing else { completion?(); return }
         refreshing = true
         refreshGeneration &+= 1
         let generation = refreshGeneration
@@ -236,14 +244,7 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
         if !signOut.isEmpty {
             WatchCredentials.signOut(signOut)
             lastReportedStatus = nil
-            if hasCredentials {
-                refresh()
-            } else {
-                snapshot = nil
-                WidgetShared.save(WidgetSnapshot(providers: [], showRemaining: true, weekTitle: "",
-                                                 weekBars: [], updatedText: "", date: Date()))
-                WidgetCenter.shared.reloadAllTimelines()
-            }
+            if hasCredentials { refresh() } else { clearSnapshot() }
         }
         // The phone's rendered snapshot is a bonus while both apps are alive.
         // Keep only the providers this watch holds a session for, so a
@@ -254,6 +255,14 @@ final class WatchStore: NSObject, ObservableObject, WCSessionDelegate {
         let held = Self.credentialed()
         guard !held.isEmpty else { return }
         show(snap.restricted(to: held))
+    }
+
+    /// No session left on the watch: drop what the app and the complication
+    /// were showing so both render the "connect from the iPhone" state.
+    private func clearSnapshot() {
+        snapshot = nil
+        WidgetShared.save(.empty())
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     private func show(_ snap: WidgetSnapshot) {

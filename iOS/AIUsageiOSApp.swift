@@ -41,13 +41,30 @@ struct AIUsageiOSApp: App {
 
 struct RootView: View {
     @EnvironmentObject private var store: UsageStoreiOS
+    @ObservedObject private var watchSync = WatchSync.shared
     @State private var showSettings = false
+
+    // A paired watch with no session of its own is a dead complication; say
+    // so where the user looks first, not only inside Settings.
+    private var watchNeedsHandover: Bool {
+        watchSync.isWatchAvailable
+            && !watchSync.link.values.contains(where: { $0 == .connected || $0 == .pending })
+    }
 
     var body: some View {
         NavigationStack {
             List {
                 ForEach(store.providers, id: \.kind) { provider in
                     ProviderCard(data: provider, health: store.health[provider.kind])
+                }
+                if watchNeedsHandover {
+                    Section {
+                        Button { showSettings = true } label: {
+                            Label(L.t("connect_apple_watch"), systemImage: "applewatch")
+                        }
+                    } footer: {
+                        Text(L.t("watch_not_connected_hint"))
+                    }
                 }
             }
             .navigationTitle("AI Usage")

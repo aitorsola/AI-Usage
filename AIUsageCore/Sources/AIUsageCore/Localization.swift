@@ -196,6 +196,8 @@ enum Translations {
         "disconnect_from_watch": "Desconectar del reloj",
         "watch_explanation": "El reloj usa una sesión propia para actualizarse solo, sin depender del iPhone: autorizas una segunda vez, la sesión se entrega al reloj y el iPhone no la conserva.",
         "connect_from_iphone": "Conecta un proveedor desde AI Usage en el iPhone",
+        "connect_apple_watch": "Conectar el Apple Watch…",
+        "watch_not_connected_hint": "El reloj no tiene sesión propia: la complicación no se actualizará hasta que la conectes desde aquí.",
     ]
 
     private static let en: [String: String] = [
@@ -352,6 +354,8 @@ enum Translations {
         "disconnect_from_watch": "Disconnect from the watch",
         "watch_explanation": "The watch keeps a session of its own so it updates by itself, without the iPhone: you authorize a second time, the session is handed to the watch and the iPhone does not keep it.",
         "connect_from_iphone": "Connect a provider from AI Usage on your iPhone",
+        "connect_apple_watch": "Connect the Apple Watch…",
+        "watch_not_connected_hint": "The watch has no session of its own: the complication will not update until you connect it from here.",
     ]
 
     private static let fr: [String: String] = [
@@ -508,6 +512,8 @@ enum Translations {
         "disconnect_from_watch": "Déconnecter de la montre",
         "watch_explanation": "La montre garde sa propre session pour se mettre à jour seule, sans l’iPhone : vous autorisez une seconde fois, la session est transmise à la montre et l’iPhone ne la conserve pas.",
         "connect_from_iphone": "Connectez un fournisseur depuis AI Usage sur votre iPhone",
+        "connect_apple_watch": "Connecter l’Apple Watch…",
+        "watch_not_connected_hint": "La montre n’a pas de session propre : la complication ne se mettra pas à jour tant que vous ne la connectez pas d’ici.",
     ]
 
     private static let de: [String: String] = [
@@ -664,6 +670,8 @@ enum Translations {
         "disconnect_from_watch": "Von der Watch trennen",
         "watch_explanation": "Die Watch hält eine eigene Sitzung und aktualisiert sich selbst, ohne das iPhone: Du autorisierst ein zweites Mal, die Sitzung wird an die Watch übergeben und das iPhone behält sie nicht.",
         "connect_from_iphone": "Verbinde einen Anbieter in AI Usage auf deinem iPhone",
+        "connect_apple_watch": "Apple Watch verbinden…",
+        "watch_not_connected_hint": "Die Watch hat keine eigene Sitzung: Die Komplikation aktualisiert sich erst, wenn du sie von hier aus verbindest.",
     ]
 
     private static let it: [String: String] = [
@@ -820,6 +828,8 @@ enum Translations {
         "disconnect_from_watch": "Scollega dall’orologio",
         "watch_explanation": "L’orologio mantiene una sessione propria e si aggiorna da solo, senza l’iPhone: autorizzi una seconda volta, la sessione viene consegnata all’orologio e l’iPhone non la conserva.",
         "connect_from_iphone": "Collega un provider da AI Usage sul tuo iPhone",
+        "connect_apple_watch": "Collega l’Apple Watch…",
+        "watch_not_connected_hint": "L’orologio non ha una sessione propria: la complicazione non si aggiornerà finché non lo colleghi da qui.",
     ]
 
     private static let pt: [String: String] = [
@@ -976,6 +986,8 @@ enum Translations {
         "disconnect_from_watch": "Desligar do relógio",
         "watch_explanation": "O relógio mantém uma sessão própria e atualiza-se sozinho, sem o iPhone: autorizas uma segunda vez, a sessão é entregue ao relógio e o iPhone não a guarda.",
         "connect_from_iphone": "Liga um fornecedor a partir do AI Usage no iPhone",
+        "connect_apple_watch": "Ligar o Apple Watch…",
+        "watch_not_connected_hint": "O relógio não tem sessão própria: a complicação não será atualizada até o ligares a partir daqui.",
     ]
 
     private static let ja: [String: String] = [
@@ -1132,6 +1144,8 @@ enum Translations {
         "disconnect_from_watch": "ウォッチから切断",
         "watch_explanation": "ウォッチは独自のセッションを持ち、iPhoneに依存せず自動更新します。もう一度認証すると、セッションはウォッチに渡され、iPhoneには残りません。",
         "connect_from_iphone": "iPhoneのAI Usageからプロバイダを接続してください",
+        "connect_apple_watch": "Apple Watchを接続…",
+        "watch_not_connected_hint": "ウォッチに独自のセッションがありません。ここから接続するまでコンプリケーションは更新されません。",
     ]
 
     private static let zh: [String: String] = [
@@ -1288,6 +1302,8 @@ enum Translations {
         "disconnect_from_watch": "从手表断开",
         "watch_explanation": "手表拥有独立会话，无需 iPhone 即可自行更新：再授权一次，会话将交给手表，iPhone 不会保留。",
         "connect_from_iphone": "请在 iPhone 的 AI Usage 中连接一个提供商",
+        "connect_apple_watch": "连接 Apple Watch…",
+        "watch_not_connected_hint": "手表没有独立会话：在此处连接之前，复杂功能不会更新。",
     ]
 
     private static let ko: [String: String] = [
@@ -1444,6 +1460,8 @@ enum Translations {
         "disconnect_from_watch": "워치에서 연결 해제",
         "watch_explanation": "워치는 자체 세션을 가지고 iPhone 없이 스스로 갱신합니다. 한 번 더 인증하면 세션이 워치로 전달되며 iPhone에는 남지 않습니다.",
         "connect_from_iphone": "iPhone의 AI Usage에서 제공자를 연결하세요",
+        "connect_apple_watch": "Apple Watch 연결…",
+        "watch_not_connected_hint": "워치에 자체 세션이 없습니다. 여기서 연결하기 전까지 컴플리케이션이 갱신되지 않습니다.",
     ]
 
     private static let ru: [String: String] = [
@@ -1600,5 +1618,7 @@ enum Translations {
         "disconnect_from_watch": "Отключить от часов",
         "watch_explanation": "Часы хранят собственную сессию и обновляются сами, без iPhone: вы авторизуетесь второй раз, сессия передаётся часам, а iPhone её не сохраняет.",
         "connect_from_iphone": "Подключите провайдера в AI Usage на iPhone",
+        "connect_apple_watch": "Подключить Apple Watch…",
+        "watch_not_connected_hint": "У часов нет собственной сессии: усложнение не будет обновляться, пока вы не подключите их отсюда.",
     ]
 }

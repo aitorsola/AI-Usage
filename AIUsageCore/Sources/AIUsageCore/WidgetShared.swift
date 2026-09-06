@@ -69,6 +69,14 @@ public struct WidgetSnapshot: Codable, Hashable {
     // How long ago this snapshot was produced.
     public var age: TimeInterval { Date().timeIntervalSince(date) }
 
+    /// Nothing to show — no provider holds a session on this device. Written
+    /// in place of a stale snapshot so the widget/complication shows that
+    /// state instead of freezing on the last numbers it ever saw.
+    public static func empty() -> WidgetSnapshot {
+        WidgetSnapshot(providers: [], showRemaining: true, weekTitle: "",
+                       weekBars: [], updatedText: "", date: Date())
+    }
+
     public static let placeholder = WidgetSnapshot(
         providers: [
             WSProvider(name: "Claude", colorHex: "#D97757", subscription: nil,

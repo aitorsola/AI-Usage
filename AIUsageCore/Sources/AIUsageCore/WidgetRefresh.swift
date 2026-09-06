@@ -51,8 +51,10 @@ public enum WidgetRefresh {
 
         let credentialed = credentialedProviders()
         guard !credentialed.isEmpty else {
-            completion(existing ?? .placeholder,
-                       existing == nil ? .placeholder : .fallback)
+            // No session on this device: say so. Falling back to the last
+            // snapshot here froze the watch complication on old numbers after
+            // its session was removed.
+            completion(.empty(), .placeholder)
             return
         }
         let showRemaining = existing?.showRemaining ?? true
