@@ -118,6 +118,8 @@ OpenCode requires no authentication — its usage lives in a local SQLite databa
 
 Everything runs locally. The only network requests are the usage/profile/balance calls to Anthropic, OpenAI and DeepSeek described above (plus the token refreshes they need), authenticated with your own session or key. No analytics, no telemetry, no third-party services.
 
+See [PRIVACY.md](PRIVACY.md) for the full policy.
+
 ## Project layout
 
 ```

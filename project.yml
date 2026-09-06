@@ -104,6 +104,9 @@ targets:
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.5"
         CFBundleVersion: "22"
+        # Only HTTPS to the providers' own endpoints — exempt encryption, so
+        # App Store Connect stops asking on every upload.
+        ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
