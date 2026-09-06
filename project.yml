@@ -12,7 +12,7 @@ settings:
   base:
     SWIFT_VERSION: "5.9"
     MARKETING_VERSION: "1.5"
-    CURRENT_PROJECT_VERSION: "22"
+    CURRENT_PROJECT_VERSION: "23"
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGNING_REQUIRED: "NO"
@@ -44,7 +44,7 @@ targets:
         CFBundleName: AI Usage
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.5"
-        CFBundleVersion: "22"
+        CFBundleVersion: "23"
         LSUIElement: true
         LSMinimumSystemVersion: "14.0"
         NSHighResolutionCapable: true
@@ -75,7 +75,7 @@ targets:
       properties:
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.5"
-        CFBundleVersion: "22"
+        CFBundleVersion: "23"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
@@ -90,7 +90,7 @@ targets:
         PRODUCT_NAME: "AI Usage"
         PRODUCT_BUNDLE_IDENTIFIER: dev.aitor.ai-usage
         CODE_SIGN_ENTITLEMENTS: Signing/iOSApp.entitlements
-        TARGETED_DEVICE_FAMILY: "1,2"
+        TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: SK4CMEFH7T
@@ -103,7 +103,7 @@ targets:
         CFBundleName: AI Usage
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.5"
-        CFBundleVersion: "22"
+        CFBundleVersion: "23"
         # Only HTTPS to the providers' own endpoints — exempt encryption, so
         # App Store Connect stops asking on every upload.
         ITSAppUsesNonExemptEncryption: false
@@ -111,11 +111,6 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown
-        UISupportedInterfaceOrientations~ipad:
-          - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationPortraitUpsideDown
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
     dependencies:
       - target: AIUsageWidgetiOS
         embed: true
@@ -150,7 +145,7 @@ targets:
         CFBundleName: AI Usage
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.5"
-        CFBundleVersion: "22"
+        CFBundleVersion: "23"
         WKApplication: true
         WKCompanionAppBundleIdentifier: dev.aitor.ai-usage
 
@@ -177,7 +172,7 @@ targets:
       properties:
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.5"
-        CFBundleVersion: "22"
+        CFBundleVersion: "23"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
@@ -235,7 +230,7 @@ targets:
       properties:
         CFBundleDisplayName: AI Usage
         CFBundleShortVersionString: "1.5"
-        CFBundleVersion: "22"
+        CFBundleVersion: "23"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
